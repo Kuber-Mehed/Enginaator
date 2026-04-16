@@ -1,6 +1,6 @@
 package ee.kubermehed.enginaator.dtos;
 
-class InventoryViewDTO {
+public class InventoryViewDTO {
     private String name;
     private int inStock;
     private int reserved;

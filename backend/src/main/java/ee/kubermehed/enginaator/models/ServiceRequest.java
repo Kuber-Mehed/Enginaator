@@ -1,10 +1,7 @@
 package ee.kubermehed.enginaator.models;
 
 import ee.kubermehed.enginaator.enums.RequestStatus;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,9 +11,11 @@ import java.util.UUID;
 
 @Entity
 @Getter @Setter @NoArgsConstructor
-class ServiceRequest {
+public class ServiceRequest {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(updatable = false, nullable = false)
     private UUID id;
 
     private String roomNumber;

@@ -1,6 +1,6 @@
 package ee.kubermehed.enginaator.dtos;
 
-class ParsedItemDTO {
+public class ParsedItemDTO {
     private String itemName;
     private int quantity;
 }

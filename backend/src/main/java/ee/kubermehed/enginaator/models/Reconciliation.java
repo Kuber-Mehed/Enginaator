@@ -1,15 +1,16 @@
 package ee.kubermehed.enginaator.models;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-class Reconciliation {
+public class Reconciliation {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(updatable = false, nullable = false)
     private UUID id;
 
     private LocalDateTime date;

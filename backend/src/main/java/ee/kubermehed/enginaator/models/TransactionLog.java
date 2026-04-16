@@ -1,18 +1,17 @@
 package ee.kubermehed.enginaator.models;
 
 import ee.kubermehed.enginaator.enums.TransactionType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-class TransactionLog {
+public class TransactionLog {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(updatable = false, nullable = false)
     private UUID id;
 
     private UUID itemId;
