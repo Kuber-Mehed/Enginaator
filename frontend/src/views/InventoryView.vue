@@ -38,7 +38,7 @@
             <InventoryTable
                 :items="filteredItems"
                 @edit="openEditModal"
-                @delete="deleteItem"
+                @delete="deleteInventoryItem"
             />
           </div>
         </main>
@@ -70,7 +70,7 @@
  * UI-heavy parts are delegated to child components.
  */
 
-import { computed, ref, watch } from 'vue'
+import {computed, onMounted, ref, watch} from 'vue'
 import { useRoute } from 'vue-router'
 
 import Sidebar from '../components/common/Sidebar.vue'
@@ -90,6 +90,7 @@ import {
 } from '../utils/constants/inventory'
 
 import type { InventoryFormState, InventoryItem } from '../utils/types/inventory'
+import {addItem, deleteItem, getInventory, updateItem} from "@/services/inventory-service.ts";
 
 type CategoryFilter = typeof INVENTORY_CATEGORIES[number]
 
@@ -227,6 +228,7 @@ function openEditModal(item: InventoryItem): void {
 }
 
 function saveItem(): void {
+  console.log('Saving item with form data:', form.value)
   if (isEditMode.value && form.value.id !== null) {
     const existingItem = items.value.find((item) => item.id === form.value.id)
 
@@ -239,18 +241,18 @@ function saveItem(): void {
     existingItem.unit = form.value.unit
     existingItem.quantityInStock = form.value.quantityInStock
     existingItem.lowStockThreshold = form.value.lowStockThreshold
-    existingItem.quantityAvailable = Math.max(
-        0,
-        form.value.quantityInStock - existingItem.quantityReserved
-    )
-  } else {
-    const nextId =
-        items.value.length > 0
-            ? Math.max(...items.value.map((item) => item.id)) + 1
-            : 1
+    updateItem(form.value.id, existingItem)
+        .then(() => {
+          fetchInventory();
+        })
+        .catch((error) => {
+          console.error('Error updating item:', error)
+        })
 
-    items.value.push({
-      id: nextId,
+  } else {
+
+    const newItem = {
+      id: null,
       name: form.value.name,
       category: form.value.category,
       unit: form.value.unit,
@@ -258,21 +260,35 @@ function saveItem(): void {
       quantityReserved: 0,
       quantityAvailable: Math.max(0, form.value.quantityInStock),
       lowStockThreshold: form.value.lowStockThreshold,
-    })
+    };
+
+    addItem(newItem)
+        .then(() => {
+          fetchInventory();
+        })
+        .catch((error) => {
+          console.error('Error updating item:', error)
+        })
   }
 
   inventoryModalRef.value?.hide()
-  resetForm()
+  resetForm();
 }
 
-function deleteItem(id: number): void {
+function deleteInventoryItem(id: string | null): void {
   const shouldDelete = globalThis.confirm('Are you sure you want to delete this item?')
 
-  if (!shouldDelete) {
+  if (!shouldDelete || !id) {
     return
   }
 
-  items.value = items.value.filter((item) => item.id !== id)
+  deleteItem(id)
+      .then(() => {
+        fetchInventory();
+      })
+      .catch((error) => {
+        console.error('Error updating item:', error)
+      })
 }
 
 /**
@@ -287,7 +303,22 @@ watch(
       )
     },
     { immediate: true }
-)
+);
+
+function fetchInventory(): void {
+  getInventory()
+      .then((data) => {
+        items.value = data
+        console.log('Inventory data loaded:', data)
+      })
+      .catch((error) => {
+        console.error('Error fetching inventory:', error)
+      })
+}
+
+onMounted(() => {
+  fetchInventory();
+});
 </script>
 
 <style scoped>

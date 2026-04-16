@@ -17,7 +17,7 @@ public class InventoryService {
     private final InventoryItemRepository inventoryItemRepository;
 
     public List<InventoryViewDTO> getInventory() {
-        return List.of();
+        return inventoryItemRepository.findAllByOrderByName().stream().map(InventoryViewDTO::fromEntity).toList();
     }
 
     public void addItem(InventoryItemDTO item) {
