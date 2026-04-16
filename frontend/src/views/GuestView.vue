@@ -205,8 +205,21 @@ const hasTranscript = computed(() => transcript.value.trim().length > 0)
         {{ confirmationMessage }}
       </div>
 
-      <div v-if="hasTranscript" class="transcript-display">
-        {{ transcript }}
+      <div class="text-input-area">
+        <textarea
+          v-model="transcript"
+          :disabled="isListening || isSubmitting"
+          placeholder="Or type your request here..."
+          class="text-input"
+          rows="3"
+        />
+        <button
+          @click="submitRequest"
+          :disabled="!hasTranscript || isListening || isSubmitting"
+          class="btn btn-submit"
+        >
+          {{ isSubmitting ? 'Sending...' : 'Send' }}
+        </button>
       </div>
 
       <div v-if="currentRequest" class="request-status-block">
@@ -350,6 +363,67 @@ const hasTranscript = computed(() => transcript.value.trim().length > 0)
   align-items: center;
   justify-content: center;
   font-style: italic;
+}
+
+.text-input-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.text-input {
+  width: 100%;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  color: #e2e8f0;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.text-input::placeholder {
+  color: #64748b;
+  font-style: italic;
+}
+
+.text-input:focus {
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+.text-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-submit {
+  background: rgba(59, 130, 246, 0.5);
+  color: #e2e8f0;
+  border: 1px solid rgba(59, 130, 246, 0.6);
+  align-self: flex-end;
+  min-width: 120px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.7);
+  border-color: rgba(59, 130, 246, 0.9);
+}
+
+.btn-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .request-status-block {
