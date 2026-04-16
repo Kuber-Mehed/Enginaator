@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -20,10 +21,11 @@ public class ServiceRequest {
 
     private String roomNumber;
 
-    private String text;
-
     @Enumerated(EnumType.STRING)
     private RequestStatus status;
 
     private LocalDateTime createdAt;
+
+    @OneToMany
+    private List<RequestItem> requestItems;
 }

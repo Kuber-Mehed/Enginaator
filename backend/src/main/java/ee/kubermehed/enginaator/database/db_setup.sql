@@ -51,7 +51,6 @@ CREATE TABLE service_request
     id            UUID PRIMARY KEY,
 
     room_number   VARCHAR(20)    NOT NULL,
-    original_text TEXT,
 
     status        request_status NOT NULL DEFAULT 'RECEIVED',
 
