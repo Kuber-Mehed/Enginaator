@@ -1,35 +1,43 @@
 package ee.kubermehed.enginaator.controllers;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import ee.kubermehed.enginaator.dtos.InventoryItemDTO;
+import ee.kubermehed.enginaator.dtos.InventoryViewDTO;
+import ee.kubermehed.enginaator.services.InventoryService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/staff/inventory")
+@RequiredArgsConstructor
 public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    public InventoryController(InventoryService inventoryService) {
-        this.inventoryService = inventoryService;
-    }
-
     @GetMapping
-    public List<InventoryViewDTO> getInventory() {
-        return inventoryService.getInventory();
-    }
-
-    @PostMapping("/restock")
-    public void restock(@RequestBody RestockDTO dto) {
-        inventoryService.restock(dto);
+    public ResponseEntity<List<InventoryViewDTO>> getInventory() {
+        return ResponseEntity.ok(inventoryService.getInventory());
     }
 
     @PostMapping("/item")
-    public InventoryItemDTO addItem(@RequestBody CreateItemDTO dto) {
-        return inventoryService.addItem(dto);
+    public ResponseEntity<Void> addItem(@RequestBody InventoryItemDTO dto) {
+        inventoryService.addItem(dto);
+        return ResponseEntity.ok().build();
     }
 
-    @DeleteMapping("/item/{id}")
-    public void deleteItem(@PathVariable Long id) {
-        inventoryService.deleteItem(id);
+    @PutMapping("/item/{itemId}")
+    public ResponseEntity<Void> restock(@PathVariable UUID itemId,
+                                        @RequestBody InventoryItemDTO dto) {
+        inventoryService.update(itemId, dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/item/{itemId}")
+    public ResponseEntity<Void> deleteItem(@PathVariable UUID itemId) {
+        inventoryService.deleteItem(itemId);
+        return ResponseEntity.ok().build();
     }
 }

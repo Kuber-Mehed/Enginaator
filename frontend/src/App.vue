@@ -1,5 +1,3 @@
-<script setup lang="ts"></script>
-
 <template>
   <h1>You did it!</h1>
   <p>
@@ -7,5 +5,16 @@
     documentation
   </p>
 </template>
+
+<script setup lang="ts">
+
+import {onMounted} from "vue";
+import {STAFF_TOPIC, stompClient} from "@/services/websocket.ts";
+
+onMounted(() => {
+  console.log("App mounted");
+  stompClient.activate();
+})
+</script>
 
 <style scoped></style>

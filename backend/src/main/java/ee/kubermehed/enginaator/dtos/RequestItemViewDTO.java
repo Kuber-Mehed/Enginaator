@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ParsedItemDTO {
+public class RequestItemViewDTO {
     private String itemName;
     private int quantity;
 }
