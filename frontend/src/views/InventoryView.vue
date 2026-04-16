@@ -3,7 +3,7 @@
 </script>
 
 <template>
-
+  <div>Inventory View</div>
 </template>
 
 <style scoped>
