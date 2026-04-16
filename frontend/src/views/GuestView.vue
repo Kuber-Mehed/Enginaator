@@ -213,13 +213,6 @@ const hasTranscript = computed(() => transcript.value.trim().length > 0)
           class="text-input"
           rows="3"
         />
-        <button
-          @click="submitRequest"
-          :disabled="!hasTranscript || isListening || isSubmitting"
-          class="btn btn-submit"
-        >
-          {{ isSubmitting ? 'Sending...' : 'Send' }}
-        </button>
       </div>
 
       <div v-if="currentRequest" class="request-status-block">
@@ -240,6 +233,13 @@ const hasTranscript = computed(() => transcript.value.trim().length > 0)
           class="btn btn-listen"
         >
           {{ isListening ? 'Listening...' : 'Start Listening' }}
+        </button>
+        <button
+          @click="submitRequest"
+          :disabled="!hasTranscript || isListening || isSubmitting"
+          class="btn btn-submit"
+        >
+          {{ isSubmitting ? 'Sending...' : 'Send' }}
         </button>
         <button
           @click="clearTranscript"
@@ -406,14 +406,6 @@ const hasTranscript = computed(() => transcript.value.trim().length > 0)
   background: rgba(59, 130, 246, 0.5);
   color: #e2e8f0;
   border: 1px solid rgba(59, 130, 246, 0.6);
-  align-self: flex-end;
-  min-width: 120px;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
 .btn-submit:hover:not(:disabled) {
