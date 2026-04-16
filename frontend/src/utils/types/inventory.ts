@@ -1,12 +1,12 @@
 export type InventoryCategory =
-    | 'housekeeping'
-    | 'food'
-    | 'beverage'
-    | 'amenity'
-    | 'maintenance'
+    | 'HOUSEKEEPING'
+    | 'FOOD'
+    | 'BEVERAGE'
+    | 'AMENITY'
+    | 'MAINTENANCE'
 
 export interface InventoryItem {
-    id: number
+    id: string | null
     name: string
     category: InventoryCategory
     unit: string
@@ -17,7 +17,7 @@ export interface InventoryItem {
 }
 
 export interface InventoryFormState {
-    id: number | null
+    id: string | null
     name: string
     category: InventoryCategory
     unit: string

@@ -27,7 +27,7 @@
           </td>
         </tr>
 
-        <tr v-for="item in items" :key="item.id">
+        <tr v-for="item in items" :key="item.id!">
           <td>
             <div class="d-flex align-items-center gap-3">
               <div class="item-icon d-flex align-items-center justify-content-center rounded-4">
@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import type { InventoryItem } from '../../types/inventory'
+import type { InventoryItem } from '@/utils/types/inventory.ts'
 
 /**
  * Inventory table.
@@ -116,7 +116,7 @@ defineProps<{
 
 defineEmits<{
   (e: 'edit', item: InventoryItem): void
-  (e: 'delete', id: number): void
+  (e: 'delete', id: string | null): void
 }>()
 </script>
 

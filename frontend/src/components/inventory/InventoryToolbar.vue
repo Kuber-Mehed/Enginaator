@@ -40,11 +40,11 @@
 <script setup lang="ts">
 type CategoryFilter =
     | 'All'
-    | 'Housekeeping'
-    | 'Food'
-    | 'Beverage'
-    | 'Amenity'
-    | 'Maintenance'
+    | 'HOUSEKEEPING'
+    | 'FOOD'
+    | 'BEVERAGE'
+    | 'AMENITY'
+    | 'MAINTENANCE'
 
 defineProps<{
   searchQuery: string
