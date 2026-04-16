@@ -13,6 +13,8 @@ import java.util.UUID;
 @Repository
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, UUID> {
 
+    List<InventoryItem> findAllByOrderByName();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<InventoryItem> findAllByNameIn(Collection<String> names);
 }
