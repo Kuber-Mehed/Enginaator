@@ -23,12 +23,12 @@ const router = createRouter({
             component: StaffDashboard,
         },
         {
-            path: '/inventory',
+            path: '/staff/inventory',
             name: 'inventory',
             component: InventoryView,
         },
         {
-            path: '/reports',
+            path: '/staff/reports',
             name: 'reports',
             component: ReportsView,
         },
