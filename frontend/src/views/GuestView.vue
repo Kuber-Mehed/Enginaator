@@ -1,99 +1,516 @@
+<template>
+  <div class="guest-view min-vh-100 d-flex align-items-center justify-content-center px-3 py-4">
+    <div class="guest-shell w-100">
+      <div class="room-badge rounded-pill px-4 py-3 text-center mx-auto mb-4">
+        <span class="room-badge-label">Room</span>
+        <span class="room-badge-number">{{ room }}</span>
+      </div>
+
+      <section class="guest-card card border-0 rounded-5 mx-auto">
+        <div class="card-body guest-card-body text-center">
+          <div
+              class="mic-circle rounded-circle d-inline-flex align-items-center justify-content-center mb-4"
+              :class="{
+              'mic-circle--listening': isListening,
+              'mic-circle--processing': isUploading || isSubmittingManual
+            }"
+          >
+            <i :class="micIconClass"></i>
+          </div>
+
+          <h1 class="guest-title mb-3">Say "Hey SVARA"</h1>
+          <p class="guest-subtitle mb-4">
+            I'm here to help with your room service needs
+          </p>
+
+          <div v-if="hasError" class="status-alert status-alert--error rounded-4 mb-4">
+            {{ activeErrorMessage }}
+          </div>
+
+          <div
+              v-if="popupMessage"
+              class="status-alert rounded-4 mb-4"
+              :class="popupAlertCustomClass"
+          >
+            <div class="fw-semibold mb-1">{{ popupMessage.title }}</div>
+            <div>{{ popupMessage.text }}</div>
+          </div>
+
+          <!-- Live transcript -->
+          <div v-if="liveTranscript || lockedVoiceText || backendTranscript" class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start">
+            <div v-if="liveTranscript" class="mb-3">
+              <div class="panel-label">Live transcript</div>
+              <div class="panel-text">{{ liveTranscript }}</div>
+            </div>
+
+            <div v-if="lockedVoiceText" class="mb-3">
+              <div class="panel-label">Captured speech</div>
+              <div class="panel-text">{{ lockedVoiceText }}</div>
+            </div>
+
+            <div v-if="backendTranscript">
+              <div class="panel-label">Backend corrected text</div>
+              <div class="panel-text panel-text--highlight">{{ backendTranscript }}</div>
+            </div>
+          </div>
+
+          <!-- Current request -->
+          <div v-if="currentRequest" class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start">
+            <div class="panel-label">Your current request</div>
+            <div class="panel-text mb-3">{{ currentRequest.displayText }}</div>
+
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <span class="text-secondary-emphasis small">Status:</span>
+              <span
+                  class="badge rounded-pill px-3 py-2 fs-6"
+                  :class="getStatusBadgeClass(currentRequest.status)"
+              >
+                {{ getStatusLabel(currentRequest.status) }}
+              </span>
+            </div>
+
+            <div v-if="currentRequest.backendMessage" class="panel-secondary-text mt-3">
+              {{ currentRequest.backendMessage }}
+            </div>
+          </div>
+
+          <!-- AI response -->
+          <div v-if="aiResponseMessage" class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start">
+            <div class="panel-label">SVARA response</div>
+            <div class="panel-text panel-text--highlight">{{ aiResponseMessage }}</div>
+          </div>
+
+          <!-- Manual text area -->
+          <div class="manual-text-block mb-4">
+            <textarea
+                v-model.trim="manualText"
+                class="form-control guest-textarea rounded-4"
+                rows="3"
+                placeholder="Or type your request here..."
+                :disabled="isListening || isUploading || isSubmittingManual"
+            />
+          </div>
+
+          <div class="button-group d-flex flex-wrap gap-3 justify-content-center mb-4">
+            <button
+                type="button"
+                class="btn guest-btn guest-btn-primary rounded-4"
+                :disabled="isListening || isUploading || isSubmittingManual"
+                @click="startVoiceCapture"
+            >
+              {{ isListening ? 'Listening...' : 'Start Listening' }}
+            </button>
+
+            <button
+                type="button"
+                class="btn guest-btn guest-btn-secondary rounded-4"
+                :disabled="!canSubmitManualText"
+                @click="submitManualRequest"
+            >
+              {{ isSubmittingManual ? 'Sending...' : 'Send' }}
+            </button>
+
+            <button
+                type="button"
+                class="btn guest-btn guest-btn-secondary rounded-4"
+                :disabled="isUploading || isListening"
+                @click="clearVoiceState"
+            >
+              Clear
+            </button>
+          </div>
+
+          <p class="helper-text mb-0">
+            Voice commands work best in a quiet environment
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+/**
+ * GuestView
+ *
+ * Main goals:
+ * - show live speech text while the guest is speaking
+ * - lock the captured voice text so the guest cannot edit it
+ * - send recorded audio file to backend
+ * - receive corrected text + AI response + request status from backend
+ * - support easier manual text requests
+ *
+ * Important note:
+ * Browser-native speech recognition is used for live transcript.
+ * Reliable always-on wake-word detection ("Hey SVARA") usually needs
+ * a dedicated wake-word engine. In this version we validate the phrase
+ * after recognition result is captured.
+ */
+
+import { computed, onMounted, ref } from 'vue'
 
 interface Props {
   room: string
 }
 
-interface Request {
+type RequestStatus =
+    | 'RECEIVED'
+    | 'IN_PROGRESS'
+    | 'DELIVERED'
+    | 'REJECTED'
+    | 'CANCELLED'
+    | 'APPROVED'
+    | 'DECLINED'
+
+interface ActiveRequest {
   id: string
   roomNumber: string
-  text: string
-  status: string
+  displayText: string
+  status: RequestStatus
   createdAt: string
+  backendMessage?: string
+}
+
+interface PopupMessage {
+  title: string
+  text: string
+  type: 'success' | 'danger' | 'warning' | 'info'
+}
+
+interface BackendVoiceResponse {
+  requestId: string
+  correctedText: string
+  aiMessage: string
+  status: RequestStatus
+  accepted: boolean
+  backendMessage?: string
 }
 
 const props = defineProps<Props>()
 
-const isListening = ref(false)
-const transcript = ref('')
-const microphoneError = ref<string | null>(null)
+/**
+ * Browser speech recognition and audio recording states.
+ */
 const recognition = ref<any>(null)
-const currentRequest = ref<Request | null>(null)
-const confirmationMessage = ref<string | null>(null)
-const isSubmitting = ref(false)
+const mediaRecorder = ref<MediaRecorder | null>(null)
+const recordedAudioChunks = ref<Blob[]>([])
+const recordedAudioBlob = ref<Blob | null>(null)
+const currentStream = ref<MediaStream | null>(null)
+
+const popupAlertCustomClass = computed(() => {
+  switch (popupMessage.value?.type) {
+    case 'success':
+      return 'status-alert--success'
+    case 'danger':
+      return 'status-alert--error'
+    case 'warning':
+      return 'status-alert--warning'
+    default:
+      return 'status-alert--info'
+  }
+})
+
+/**
+ * UI states.
+ */
+const isListening = ref(false)
+const isUploading = ref(false)
+const isSubmittingManual = ref(false)
+
+/**
+ * Voice transcript states.
+ *
+ * liveTranscript:
+ * - updates while guest speaks
+ *
+ * lockedVoiceText:
+ * - final client-side text captured from browser speech recognition
+ * - cannot be edited by the guest
+ *
+ * backendTranscript:
+ * - corrected / improved text returned by backend
+ */
+const liveTranscript = ref('')
+const lockedVoiceText = ref('')
+const backendTranscript = ref('')
+
+/**
+ * Manual typed request text.
+ */
+const manualText = ref('')
+
+/**
+ * Feedback and result states.
+ */
+const microphoneError = ref<string | null>(null)
 const apiError = ref<string | null>(null)
+const popupMessage = ref<PopupMessage | null>(null)
+const aiResponseMessage = ref<string | null>(null)
+const currentRequest = ref<ActiveRequest | null>(null)
+
+/**
+ * Wake phrase required before voice request is accepted.
+ */
+const wakePhrase = 'hey svara'
 
 onMounted(() => {
-  // Initialize Web Speech API
-  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-  if (SpeechRecognition) {
-    recognition.value = new SpeechRecognition()
-    recognition.value.continuous = false
-    recognition.value.interimResults = true
-    recognition.value.lang = 'en-US'
-
-    recognition.value.onstart = () => {
-      isListening.value = true
-      microphoneError.value = null
-      confirmationMessage.value = null
-    }
-
-    recognition.value.onresult = (event: any) => {
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcriptSegment = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          transcript.value = transcriptSegment
-        } else {
-          interim += transcriptSegment
-        }
-      }
-      if (interim) {
-        transcript.value = interim
-      }
-    }
-
-    recognition.value.onerror = (event: any) => {
-      isListening.value = false
-      if (event.error === 'no-speech') {
-        microphoneError.value = 'No speech detected. Please try again.'
-      } else if (event.error === 'not-allowed') {
-        microphoneError.value = 'Microphone access denied. Please allow microphone access.'
-      } else if (event.error === 'network') {
-        microphoneError.value = 'Network error. Please check your connection.'
-      } else {
-        microphoneError.value = `Error: ${event.error}`
-      }
-    }
-
-    recognition.value.onend = () => {
-      isListening.value = false
-      // Auto-submit if we have a transcript
-      if (transcript.value.trim()) {
-        submitRequest()
-      }
-    }
-  }
-
-  // Fetch existing requests for the room
+  initializeSpeechRecognition()
   fetchRoomRequests()
 })
 
-const startListening = () => {
-  if (recognition.value) {
-    transcript.value = ''
+/**
+ * Initializes browser speech recognition if supported.
+ */
+function initializeSpeechRecognition(): void {
+  const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    microphoneError.value =
+        'Speech recognition is not supported in this browser.'
+    return
+  }
+
+  const speechRecognition = new SpeechRecognition()
+  speechRecognition.continuous = true
+  speechRecognition.interimResults = true
+  speechRecognition.lang = 'en-US'
+
+  speechRecognition.onstart = () => {
+    isListening.value = true
     microphoneError.value = null
-    confirmationMessage.value = null
     apiError.value = null
+    popupMessage.value = null
+    aiResponseMessage.value = null
+    liveTranscript.value = ''
+    lockedVoiceText.value = ''
+    backendTranscript.value = ''
+  }
+
+  speechRecognition.onresult = (event: any) => {
+    let currentLiveText = ''
+    let finalText = ''
+
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const piece = event.results[i][0].transcript
+
+      if (event.results[i].isFinal) {
+        finalText += piece
+      } else {
+        currentLiveText += piece
+      }
+    }
+
+    liveTranscript.value = `${finalText} ${currentLiveText}`.trim()
+
+    if (finalText.trim()) {
+      lockedVoiceText.value = finalText.trim()
+    }
+  }
+
+  speechRecognition.onerror = (event: any) => {
+    isListening.value = false
+
+    switch (event.error) {
+      case 'no-speech':
+        microphoneError.value = 'No speech detected. Please try again.'
+        break
+      case 'not-allowed':
+        microphoneError.value =
+            'Microphone access denied. Please allow microphone access.'
+        break
+      case 'network':
+        microphoneError.value = 'Network error. Please check your connection.'
+        break
+      default:
+        microphoneError.value = `Speech recognition error: ${event.error}`
+        break
+    }
+
+    stopAudioRecordingOnly()
+  }
+
+  speechRecognition.onend = async () => {
+    isListening.value = false
+    await finalizeVoiceCaptureAndSend()
+  }
+
+  recognition.value = speechRecognition
+}
+
+/**
+ * Starts both:
+ * - browser speech recognition for live transcript
+ * - MediaRecorder for raw audio file
+ */
+async function startVoiceCapture(): Promise<void> {
+  if (!recognition.value) {
+    microphoneError.value =
+        'Speech recognition is not available in this browser.'
+    return
+  }
+
+  try {
+    clearMessagesOnly()
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    currentStream.value = stream
+
+    recordedAudioChunks.value = []
+    recordedAudioBlob.value = null
+
+    const recorder = new MediaRecorder(stream)
+    mediaRecorder.value = recorder
+
+    recorder.ondataavailable = (event: BlobEvent) => {
+      if (event.data.size > 0) {
+        recordedAudioChunks.value.push(event.data)
+      }
+    }
+
+    recorder.start()
     recognition.value.start()
+  } catch (error) {
+    microphoneError.value =
+        'Could not access the microphone. Please check browser permissions.'
   }
 }
 
-const submitRequest = async () => {
-  isSubmitting.value = true
+/**
+ * Stops recognition manually.
+ * Final upload happens in recognition.onend.
+ */
+function stopVoiceCapture(): void {
+  if (recognition.value && isListening.value) {
+    recognition.value.stop()
+  } else {
+    stopAudioRecordingOnly()
+  }
+}
+
+/**
+ * Stops only the audio recorder and media stream.
+ */
+function stopAudioRecordingOnly(): void {
+  if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
+    mediaRecorder.value.stop()
+  }
+
+  if (currentStream.value) {
+    currentStream.value.getTracks().forEach((track) => track.stop())
+    currentStream.value = null
+  }
+}
+
+/**
+ * Final step after speech recognition ends:
+ * - stop and build audio blob
+ * - validate wake phrase
+ * - upload voice request to backend
+ */
+async function finalizeVoiceCaptureAndSend(): Promise<void> {
+  stopAudioRecordingOnly()
+
+  if (!lockedVoiceText.value.trim()) {
+    return
+  }
+
+  if (!startsWithWakePhrase(lockedVoiceText.value)) {
+    popupMessage.value = {
+      title: 'Wake phrase not detected',
+      text: 'Please start your voice request with “Hey SVARA”.',
+      type: 'warning',
+    }
+    return
+  }
+
+  if (recordedAudioChunks.value.length > 0) {
+    recordedAudioBlob.value = new Blob(recordedAudioChunks.value, {
+      type: 'audio/webm',
+    })
+  }
+
+  await submitVoiceRequest()
+}
+
+/**
+ * Sends the locked raw client transcript + recorded audio file to backend.
+ *
+ * Frontend does NOT edit the spoken text.
+ * Backend can later return corrected text.
+ */
+async function submitVoiceRequest(): Promise<void> {
+  if (!lockedVoiceText.value.trim()) {
+    return
+  }
+
+  isUploading.value = true
   apiError.value = null
+
+  try {
+    const formData = new FormData()
+    formData.append('roomNumber', props.room)
+    formData.append('rawTranscript', lockedVoiceText.value)
+
+    if (recordedAudioBlob.value) {
+      formData.append(
+          'audio',
+          recordedAudioBlob.value,
+          `room-${props.room}-${Date.now()}.webm`
+      )
+    }
+
+    const response = await fetch('/api/guest/voice-requests', {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to submit voice request.')
+    }
+
+    const data: BackendVoiceResponse = await response.json()
+
+    backendTranscript.value = data.correctedText
+    aiResponseMessage.value = data.aiMessage
+
+    currentRequest.value = {
+      id: data.requestId,
+      roomNumber: props.room,
+      displayText: data.correctedText,
+      status: data.status,
+      createdAt: new Date().toISOString(),
+      backendMessage: data.backendMessage || data.aiMessage,
+    }
+
+    popupMessage.value = {
+      title: data.accepted ? 'Request sent' : 'Request needs attention',
+      text: data.aiMessage,
+      type: data.accepted ? 'success' : 'warning',
+    }
+  } catch (error) {
+    apiError.value =
+        error instanceof Error
+            ? error.message
+            : 'An error occurred while sending the voice request.'
+  } finally {
+    isUploading.value = false
+  }
+}
+
+/**
+ * Manual text request flow.
+ * Easier and separate from voice.
+ */
+async function submitManualRequest(): Promise<void> {
+  if (!manualText.value.trim()) {
+    return
+  }
+
+  isSubmittingManual.value = true
+  apiError.value = null
+  popupMessage.value = null
+  aiResponseMessage.value = null
 
   try {
     const response = await fetch('/api/guest/requests', {
@@ -103,53 +520,68 @@ const submitRequest = async () => {
       },
       body: JSON.stringify({
         roomNumber: props.room,
-        text: transcript.value,
+        text: manualText.value,
+        source: 'manual',
       }),
     })
 
     if (!response.ok) {
-      throw new Error('Failed to submit request')
+      throw new Error('Failed to submit manual request.')
     }
 
     const data = await response.json()
-    currentRequest.value = data
-    confirmationMessage.value = 'Your request has been received!'
-    transcript.value = ''
-    microphoneError.value = null
 
-    // Hide confirmation after 3 seconds
-    setTimeout(() => {
-      confirmationMessage.value = null
-    }, 3000)
+    currentRequest.value = {
+      id: data.id,
+      roomNumber: props.room,
+      displayText: data.text,
+      status: data.status,
+      createdAt: data.createdAt,
+      backendMessage: data.message,
+    }
+
+    popupMessage.value = {
+      title: 'Request sent',
+      text: data.message || 'Your request has been sent successfully.',
+      type: 'success',
+    }
+
+    manualText.value = ''
   } catch (error) {
-    apiError.value = error instanceof Error ? error.message : 'An error occurred while submitting your request.'
+    apiError.value =
+        error instanceof Error
+            ? error.message
+            : 'An error occurred while sending the request.'
   } finally {
-    isSubmitting.value = false
+    isSubmittingManual.value = false
   }
 }
 
-const clearTranscript = () => {
-  transcript.value = ''
-  microphoneError.value = null
-  confirmationMessage.value = null
-  apiError.value = null
-  if (isListening.value && recognition.value) {
-    recognition.value.abort()
-  }
-  isListening.value = false
-}
-
-const fetchRoomRequests = async () => {
+/**
+ * Fetches latest active room request on page load.
+ */
+async function fetchRoomRequests(): Promise<void> {
   try {
     const response = await fetch(`/api/guest/requests/${props.room}`)
-    if (response.ok) {
-      const requests = await response.json()
-      // Get the latest active request
-      const activeRequest = requests.find((r: Request) =>
-        !['DELIVERED', 'REJECTED', 'CANCELLED'].includes(r.status)
-      )
-      if (activeRequest) {
-        currentRequest.value = activeRequest
+
+    if (!response.ok) {
+      return
+    }
+
+    const requests = await response.json()
+    const activeRequest = requests.find(
+        (request: any) =>
+            !['DELIVERED', 'REJECTED', 'CANCELLED'].includes(request.status)
+    )
+
+    if (activeRequest) {
+      currentRequest.value = {
+        id: activeRequest.id,
+        roomNumber: activeRequest.roomNumber,
+        displayText: activeRequest.text,
+        status: activeRequest.status,
+        createdAt: activeRequest.createdAt,
+        backendMessage: activeRequest.message,
       }
     }
   } catch (error) {
@@ -157,389 +589,352 @@ const fetchRoomRequests = async () => {
   }
 }
 
-const getStatusLabel = (status: string): string => {
+/**
+ * Clears only temporary feedback messages.
+ */
+function clearMessagesOnly(): void {
+  microphoneError.value = null
+  apiError.value = null
+  popupMessage.value = null
+}
+
+/**
+ * Clears voice-only state.
+ */
+function clearVoiceState(): void {
+  liveTranscript.value = ''
+  lockedVoiceText.value = ''
+  backendTranscript.value = ''
+  recordedAudioBlob.value = null
+  recordedAudioChunks.value = []
+  clearMessagesOnly()
+
+  if (recognition.value && isListening.value) {
+    recognition.value.abort()
+  }
+
+  stopAudioRecordingOnly()
+  isListening.value = false
+}
+
+/**
+ * Verifies that the guest started with the wake phrase.
+ */
+function startsWithWakePhrase(text: string): boolean {
+  return text.trim().toLowerCase().startsWith(wakePhrase)
+}
+
+function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     RECEIVED: 'Received',
     IN_PROGRESS: 'In Progress',
     DELIVERED: 'Delivered',
     REJECTED: 'Rejected',
     CANCELLED: 'Cancelled',
+    APPROVED: 'Approved',
+    DECLINED: 'Declined',
   }
+
   return labels[status] || status
 }
 
-const getStatusColor = (status: string): string => {
-  const colors: Record<string, string> = {
-    RECEIVED: '#94a3b8',
-    IN_PROGRESS: '#3b82f6',
-    DELIVERED: '#10b981',
-    REJECTED: '#ef4444',
-    CANCELLED: '#f97316',
+function getStatusBadgeClass(status: string): string {
+  const classes: Record<string, string> = {
+    RECEIVED: 'text-bg-secondary',
+    IN_PROGRESS: 'text-bg-primary',
+    DELIVERED: 'text-bg-success',
+    REJECTED: 'text-bg-danger',
+    CANCELLED: 'text-bg-warning',
+    APPROVED: 'text-bg-success',
+    DECLINED: 'text-bg-danger',
   }
-  return colors[status] || '#94a3b8'
+
+  return classes[status] || 'text-bg-secondary'
 }
 
-const hasError = computed(() => microphoneError.value !== null || apiError.value !== null)
-const hasTranscript = computed(() => transcript.value.trim().length > 0)
+const hasError = computed(() => Boolean(microphoneError.value || apiError.value))
+
+const activeErrorMessage = computed(() => {
+  return microphoneError.value || apiError.value || ''
+})
+
+const canStopListening = computed(() => isListening.value)
+
+const canSubmitManualText = computed(() => {
+  return (
+      manualText.value.trim().length > 0 &&
+      !isSubmittingManual.value &&
+      !isListening.value &&
+      !isUploading.value
+  )
+})
+
+const micIconClass = computed(() => {
+  if (isUploading.value || isSubmittingManual.value) {
+    return 'bi bi-arrow-repeat fs-1'
+  }
+
+  if (isListening.value) {
+    return 'bi bi-mic-fill fs-1'
+  }
+
+  return 'bi bi-mic-mute fs-1'
+})
+
+const popupAlertClass = computed(() => {
+  switch (popupMessage.value?.type) {
+    case 'success':
+      return 'alert-success'
+    case 'danger':
+      return 'alert-danger'
+    case 'warning':
+      return 'alert-warning'
+    default:
+      return 'alert-info'
+  }
+})
 </script>
 
-<template>
-  <div class="guest-container">
-    <div class="room-badge">
-      <span>Room {{ room }}</span>
-    </div>
-
-    <div class="voice-interface">
-      <div class="microphone-icon">
-        <i class="bi bi-mic-mute"></i>
-      </div>
-
-      <h1 class="main-heading">Say "Hey SVARA"</h1>
-      <p class="subtitle">I'm here to help with your room service needs</p>
-
-      <div v-if="hasError" class="error-message">
-        {{ microphoneError || apiError }}
-      </div>
-
-      <div v-if="confirmationMessage" class="confirmation-message">
-        {{ confirmationMessage }}
-      </div>
-
-      <div class="text-input-area">
-        <textarea
-          v-model="transcript"
-          :disabled="isListening || isSubmitting"
-          placeholder="Or type your request here..."
-          class="text-input"
-          rows="3"
-        />
-      </div>
-
-      <div v-if="currentRequest" class="request-status-block">
-        <div class="request-header">Your Current Request</div>
-        <div class="request-text">{{ currentRequest.text }}</div>
-        <div class="request-status">
-          <span class="status-label">Status:</span>
-          <span class="status-value" :style="{ color: getStatusColor(currentRequest.status) }">
-            {{ getStatusLabel(currentRequest.status) }}
-          </span>
-        </div>
-      </div>
-
-      <div class="button-group">
-        <button
-          @click="startListening"
-          :disabled="isListening"
-          class="btn btn-listen"
-        >
-          {{ isListening ? 'Listening...' : 'Start Listening' }}
-        </button>
-        <button
-          @click="submitRequest"
-          :disabled="!hasTranscript || isListening || isSubmitting"
-          class="btn btn-submit"
-        >
-          {{ isSubmitting ? 'Sending...' : 'Send' }}
-        </button>
-        <button
-          @click="clearTranscript"
-          class="btn btn-clear"
-        >
-          Clear
-        </button>
-      </div>
-
-      <p class="helper-text">Voice commands work best in a quiet environment</p>
-    </div>
-  </div>
-</template>
-
 <style scoped>
-.guest-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem;
-  position: relative;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+.guest-view {
+  background:
+      radial-gradient(circle at top, rgba(37, 99, 235, 0.1), transparent 30%),
+      linear-gradient(90deg, #071225 0%, #020817 50%, #071225 100%);
+  color: var(--text-main);
+}
+
+.guest-shell {
+  max-width: 980px;
 }
 
 .room-badge {
-  position: absolute;
-  top: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 2rem;
-  padding: 0.75rem 1.5rem;
-  color: #b0b9d6;
-  font-weight: 500;
-  font-size: 1rem;
+  width: fit-content;
+  min-width: 120px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
 }
 
-.voice-interface {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 2rem;
-  padding: 3rem 2rem;
-  max-width: 600px;
-  width: 100%;
-  margin-top: 6rem;
-  backdrop-filter: blur(10px);
-}
-
-.microphone-icon {
-  width: 120px;
-  height: 120px;
-  background: rgba(71, 85, 105, 0.4);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 2rem;
-  font-size: 3rem;
+.room-badge-label {
   color: #94a3b8;
+  font-size: 0.95rem;
+  margin-right: 0.45rem;
 }
 
-.main-heading {
-  font-size: 2.5rem;
+.room-badge-number {
+  color: #f8fafc;
+  font-size: 2rem;
   font-weight: 700;
-  color: #ffffff;
-  margin: 1.5rem 0 1rem 0;
-  text-align: center;
-  line-height: 1.2;
+  line-height: 1;
 }
 
-.subtitle {
-  font-size: 1.125rem;
+.guest-card {
+  max-width: 760px;
+  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.guest-card-body {
+  padding: 3.5rem 3rem;
+}
+
+.mic-circle {
+  width: 140px;
+  height: 140px;
+  background: rgba(71, 85, 105, 0.38);
+  color: #6b7280;
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.mic-circle i {
+  font-size: 4rem;
+}
+
+.mic-circle--listening {
+  background-color: rgba(59, 130, 246, 0.16);
+  color: var(--primary);
+  transform: scale(1.04);
+}
+
+.mic-circle--processing {
+  background-color: rgba(34, 197, 94, 0.14);
+  color: var(--success);
+}
+
+.guest-title {
+  color: #f8fafc;
+  font-size: clamp(2.25rem, 4vw, 3.1rem);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.guest-subtitle {
   color: #cbd5e1;
-  margin-bottom: 2rem;
-  text-align: center;
+  font-size: 1.25rem;
 }
 
-.error-message {
-  background: rgba(220, 38, 38, 0.1);
-  border: 1px solid #dc2626;
-  border-radius: 0.75rem;
-  padding: 1rem 1.5rem;
-  color: #fca5a5;
-  margin-bottom: 1.5rem;
-  width: 100%;
-  text-align: center;
-  font-size: 0.95rem;
-}
-
-.confirmation-message {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid #10b981;
-  border-radius: 0.75rem;
-  padding: 1rem 1.5rem;
-  color: #86efac;
-  margin-bottom: 1.5rem;
-  width: 100%;
-  text-align: center;
-  font-size: 0.95rem;
-}
-
-.transcript-display {
-  background: rgba(148, 163, 184, 0.1);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.75rem;
-  padding: 1rem 1.5rem;
-  color: #e2e8f0;
-  margin-bottom: 1.5rem;
-  width: 100%;
-  text-align: center;
-  min-height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-style: italic;
-}
-
-.text-input-area {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.text-input {
-  width: 100%;
-  background: rgba(148, 163, 184, 0.1);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 0.75rem;
+.status-alert {
+  border: 1px solid;
   padding: 1rem 1.25rem;
-  color: #e2e8f0;
-  font-size: 1rem;
-  font-family: inherit;
-  resize: vertical;
-  outline: none;
-  transition: border-color 0.2s ease;
-  box-sizing: border-box;
+  text-align: center;
+  font-size: 1.05rem;
 }
 
-.text-input::placeholder {
-  color: #64748b;
-  font-style: italic;
+.status-alert--error {
+  background: rgba(127, 29, 29, 0.18);
+  border-color: rgba(220, 38, 38, 0.7);
+  color: #f87171;
 }
 
-.text-input:focus {
-  border-color: rgba(148, 163, 184, 0.6);
+.status-alert--success {
+  background: rgba(20, 83, 45, 0.18);
+  border-color: rgba(34, 197, 94, 0.6);
+  color: #86efac;
 }
 
-.text-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.status-alert--warning {
+  background: rgba(120, 53, 15, 0.18);
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #fcd34d;
 }
 
-.btn-submit {
-  background: rgba(59, 130, 246, 0.5);
-  color: #e2e8f0;
-  border: 1px solid rgba(59, 130, 246, 0.6);
+.status-alert--info {
+  background: rgba(30, 64, 175, 0.16);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
 }
 
-.btn-submit:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.7);
-  border-color: rgba(59, 130, 246, 0.9);
+.content-panel {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.btn-submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.request-status-block {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  color: #e2e8f0;
-  margin-bottom: 1.5rem;
-  width: 100%;
-}
-
-.request-header {
-  font-size: 0.875rem;
+.panel-label {
   color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   margin-bottom: 0.5rem;
 }
 
-.request-text {
+.panel-text {
+  color: #e2e8f0;
   font-size: 1rem;
-  color: #ffffff;
-  margin-bottom: 1rem;
-  font-weight: 500;
+  line-height: 1.55;
 }
 
-.request-status {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.panel-text--highlight {
+  color: #f8fafc;
+}
+
+.panel-secondary-text {
+  color: #cbd5e1;
   font-size: 0.95rem;
 }
 
-.status-label {
-  color: #94a3b8;
+.manual-text-block {
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.status-value {
-  font-weight: 600;
+.guest-textarea {
+  background: rgba(15, 23, 42, 0.52);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  resize: none;
+  padding: 1rem 1.15rem;
+  min-height: 96px;
+}
+
+.guest-textarea::placeholder {
+  color: #64748b;
+}
+
+.guest-textarea:focus {
+  background: rgba(15, 23, 42, 0.65);
+  color: #f8fafc;
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.14);
+}
+
+.guest-textarea:disabled {
+  opacity: 0.65;
 }
 
 .button-group {
-  display: flex;
-  gap: 1rem;
-  width: 100%;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  justify-content: center;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.btn {
-  flex: 1;
-  min-width: 140px;
+.guest-btn {
+  min-width: 180px;
   padding: 1rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  border-radius: 0.75rem;
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-transform: none;
+  font-weight: 700;
+  border: 1px solid transparent;
 }
 
-.btn-listen {
-  background: rgba(71, 85, 105, 0.6);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+.guest-btn-primary {
+  background: rgba(71, 85, 105, 0.52);
+  color: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.2);
 }
 
-.btn-listen:hover:not(:disabled) {
-  background: rgba(71, 85, 105, 0.8);
-  border-color: rgba(148, 163, 184, 0.5);
+.guest-btn-primary:hover:not(:disabled) {
+  background: rgba(71, 85, 105, 0.72);
+  color: #ffffff;
 }
 
-.btn-listen:disabled {
-  opacity: 0.5;
+.guest-btn-secondary {
+  background: rgba(71, 85, 105, 0.52);
+  color: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.guest-btn-secondary:hover:not(:disabled) {
+  background: rgba(71, 85, 105, 0.72);
+  color: #ffffff;
+}
+
+.guest-btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
-}
-
-.btn-clear {
-  background: rgba(71, 85, 105, 0.6);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-}
-
-.btn-clear:hover {
-  background: rgba(71, 85, 105, 0.8);
-  border-color: rgba(148, 163, 184, 0.5);
 }
 
 .helper-text {
   color: #94a3b8;
-  font-size: 0.875rem;
-  text-align: center;
-  margin: 0;
+  font-size: 1rem;
 }
 
-@media (max-width: 600px) {
-  .guest-container {
-    padding: 1rem;
+@media (max-width: 768px) {
+  .guest-card-body {
+    padding: 2rem 1.25rem;
   }
 
-  .voice-interface {
-    padding: 2rem 1.5rem;
-    border-radius: 1.5rem;
+  .mic-circle {
+    width: 108px;
+    height: 108px;
   }
 
-  .main-heading {
-    font-size: 1.75rem;
+  .mic-circle i {
+    font-size: 3rem;
   }
 
-  .microphone-icon {
-    width: 100px;
-    height: 100px;
-    font-size: 2.5rem;
+  .guest-subtitle {
+    font-size: 1.05rem;
+  }
+
+  .guest-btn {
+    width: 100%;
+    min-width: 0;
   }
 
   .button-group {
     flex-direction: column;
-  }
-
-  .btn {
-    width: 100%;
   }
 }
 </style>
