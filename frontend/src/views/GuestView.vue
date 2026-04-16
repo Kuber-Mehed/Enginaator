@@ -26,7 +26,7 @@ const apiError = ref<string | null>(null)
 
 onMounted(() => {
   // Initialize Web Speech API
-  const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
   if (SpeechRecognition) {
     recognition.value = new SpeechRecognition()
