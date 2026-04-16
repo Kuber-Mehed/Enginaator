@@ -19,9 +19,6 @@ public class RequestItem {
     private UUID id;
 
     @ManyToOne
-    private ServiceRequest serviceRequest;
-
-    @ManyToOne
     private InventoryItem item;
 
     private int quantity;
