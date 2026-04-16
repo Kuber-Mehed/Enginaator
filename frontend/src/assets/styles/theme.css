@@ -21,6 +21,8 @@
     --segment-active-color: #ffffff;
     --segment-color: #94a3b8;
 
+    --modal-close-filter: invert(1);
+
     --empty-icon: rgba(255, 255, 255, 0.35);
 
     --primary: #3b82f6;
@@ -51,6 +53,8 @@
     --segment-active-bg: #e2e8f0;
     --segment-active-color: #0f172a;
     --segment-color: #475569;
+
+    --modal-close-filter: invert(0);
 
     --empty-icon: rgba(15, 23, 42, 0.3);
 
