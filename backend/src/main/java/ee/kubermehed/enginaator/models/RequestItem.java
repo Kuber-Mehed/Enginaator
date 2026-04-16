@@ -1,8 +1,6 @@
 package ee.kubermehed.enginaator.models;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,9 +11,11 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-class RequestItem {
+public class RequestItem {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(updatable = false, nullable = false)
     private UUID id;
 
     @ManyToOne

@@ -4,7 +4,7 @@ CREATE TYPE request_status AS ENUM (
     'DELIVERED',
     'REJECTED',
     'CANCELLED'
-);
+    );
 
 CREATE TYPE transaction_type AS ENUM (
     'RESERVATION',
@@ -13,14 +13,14 @@ CREATE TYPE transaction_type AS ENUM (
     'RESTOCK',
     'ADJUSTMENT',
     'RECONCILIATION'
-);
+    );
 
 CREATE TYPE discrepancy_reason AS ENUM (
     'DAMAGED',
     'THEFT',
     'MISCOUNTED',
     'SUPPLIER_ERROR'
-);
+    );
 
 -- =========================
 -- INVENTORY
@@ -28,7 +28,7 @@ CREATE TYPE discrepancy_reason AS ENUM (
 
 CREATE TABLE inventory_item
 (
-    id                  UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
+    id                  UUID PRIMARY KEY,
 
     name                VARCHAR(255) NOT NULL UNIQUE,
     category            VARCHAR(100),
@@ -43,12 +43,12 @@ CREATE TABLE inventory_item
 CREATE INDEX idx_inventory_name ON inventory_item (name);
 
 -- =========================
--- REQUEST
+-- service_request
 -- =========================
 
-CREATE TABLE request
+CREATE TABLE service_request
 (
-    id            UUID PRIMARY KEY        DEFAULT gen_random_uuid(),
+    id            UUID PRIMARY KEY,
 
     room_number   VARCHAR(20)    NOT NULL,
     original_text TEXT,
@@ -58,9 +58,9 @@ CREATE TABLE request
     created_at    TIMESTAMP      NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_request_room ON request (room_number);
-CREATE INDEX idx_request_status ON request (status);
-CREATE INDEX idx_request_created_at ON request (created_at DESC);
+CREATE INDEX idx_service_request_room ON service_request (room_number);
+CREATE INDEX idx_service_request_status ON service_request (status);
+CREATE INDEX idx_service_request_created_at ON service_request (created_at DESC);
 
 -- =========================
 -- REQUEST ITEMS (LINE ITEMS)
@@ -68,16 +68,16 @@ CREATE INDEX idx_request_created_at ON request (created_at DESC);
 
 CREATE TABLE request_item
 (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                 UUID PRIMARY KEY,
 
-    request_id        UUID    NOT NULL,
-    inventory_item_id UUID    NOT NULL,
+    service_request_id UUID    NOT NULL,
+    inventory_item_id  UUID    NOT NULL,
 
-    quantity          INTEGER NOT NULL CHECK (quantity > 0),
+    quantity           INTEGER NOT NULL CHECK (quantity > 0),
 
-    CONSTRAINT fk_request_item_request
-        FOREIGN KEY (request_id)
-            REFERENCES request (id)
+    CONSTRAINT fk_service_request_item_request
+        FOREIGN KEY (service_request_id)
+            REFERENCES service_request (id)
             ON DELETE CASCADE,
 
     CONSTRAINT fk_request_item_inventory
@@ -86,7 +86,7 @@ CREATE TABLE request_item
             ON DELETE RESTRICT
 );
 
-CREATE INDEX idx_request_item_request ON request_item (request_id);
+CREATE INDEX idx_request_item_request ON request_item (service_request_id);
 
 -- =========================
 -- TRANSACTION LOG
@@ -94,7 +94,7 @@ CREATE INDEX idx_request_item_request ON request_item (request_id);
 
 CREATE TABLE transaction_log
 (
-    id                UUID PRIMARY KEY          DEFAULT gen_random_uuid(),
+    id                UUID PRIMARY KEY,
 
     inventory_item_id UUID             NOT NULL,
 
@@ -122,7 +122,7 @@ CREATE INDEX idx_transaction_time ON transaction_log (timestamp DESC);
 
 CREATE TABLE reconciliation
 (
-    id         UUID PRIMARY KEY   DEFAULT gen_random_uuid(),
+    id         UUID PRIMARY KEY,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -131,7 +131,7 @@ CREATE TABLE reconciliation
 -- =========================
 CREATE TABLE reconciliation_item
 (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                UUID PRIMARY KEY,
 
     reconciliation_id UUID               NOT NULL,
     inventory_item_id UUID               NOT NULL,
