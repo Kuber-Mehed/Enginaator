@@ -1,5 +1,6 @@
 package ee.kubermehed.enginaator.services;
 
+import ee.kubermehed.enginaator.dtos.InventoryViewDTO;
 import ee.kubermehed.enginaator.dtos.ParsedItemDTO;
 import ee.kubermehed.enginaator.dtos.RequestViewDTO;
 import ee.kubermehed.enginaator.enums.RequestStatus;
@@ -15,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +29,7 @@ public class ServiceRequestService {
     private final ServiceRequestRepository serviceRequestRepository;
     private final InventoryItemRepository inventoryItemRepository;
     private final RequestItemRepository requestItemRepository;
+    private final NotificationService notificationService;
 
     public List<RequestViewDTO> getServiceRequests() {
         return serviceRequestRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -46,7 +47,7 @@ public class ServiceRequestService {
                 .toList();
 
         Map<String, InventoryItem> inventoryItems =
-                inventoryItemRepository.findAllByNameIn(itemNames)
+                inventoryItemRepository.findAllByNameIn(itemNames.stream().map(String::toLowerCase).toList())
                         .stream()
                         .collect(Collectors.toMap(InventoryItem::getName, i -> i));
 
@@ -57,7 +58,7 @@ public class ServiceRequestService {
 
         for (ParsedItemDTO parsedItem : parsedItems) {
 
-            InventoryItem inventoryItem = inventoryItems.get(parsedItem.getItemName());
+            InventoryItem inventoryItem = inventoryItems.get(parsedItem.getItemName().toLowerCase());
 
             if (inventoryItem == null) {
                 throw new RuntimeException("Item not found: " + parsedItem.getItemName());
@@ -83,6 +84,8 @@ public class ServiceRequestService {
 
         serviceRequestRepository.save(serviceRequest);
         inventoryItemRepository.saveAll(inventoryItems.values());
+        inventoryItems.values().forEach((item) -> notificationService.sendToInventory(InventoryViewDTO.fromEntity(item)));
+        notificationService.sendToStaff(RequestViewDTO.fromEntity(serviceRequest));
     }
 
     @Transactional

@@ -75,7 +75,8 @@ import ThemeToggleButton from '../components/common/ThemeToggleButton.vue'
 import StatCard from '../components/common/StatCard.vue'
 import RequestFilters from '../components/request/RequestFilters.vue'
 import RequestList from '../components/request/RequestList.vue'
-import { getServiceRequests } from '@/services/service-request-service.ts'
+import {getServiceRequests} from "@/services/service-request-service.ts";
+import {eventBus} from "@/services/event-bus.ts";
 
 type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
 type RequestTab = 'active' | 'all'
@@ -376,6 +377,11 @@ onMounted(async () => {
 
   await loadRequests()
   connectRealtimeChannel()
+
+  eventBus.on("new-request", (data) => {
+    console.log("update UI", data);
+    requests.value.unshift(data as StaffRequest);
+  });
 })
 
 onBeforeUnmount(() => {

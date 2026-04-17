@@ -91,6 +91,7 @@ import {
 
 import type { InventoryFormState, InventoryItem } from '../utils/types/inventory'
 import {addItem, deleteItem, getInventory, updateItem} from "@/services/inventory-service.ts";
+import {eventBus} from "@/services/event-bus.ts";
 
 type CategoryFilter = typeof INVENTORY_CATEGORIES[number]
 
@@ -318,6 +319,13 @@ function fetchInventory(): void {
 
 onMounted(() => {
   fetchInventory();
+
+  eventBus.on("new-inventory-item", (data) => {
+    const newItem = data as InventoryItem;
+    items.value = items.value.map(item =>
+        item.id === newItem.id ? newItem : item
+    );
+  });
 });
 </script>
 
