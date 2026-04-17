@@ -381,6 +381,7 @@ onMounted(async () => {
   eventBus.on("new-request", (data) => {
     console.log("update UI", data);
     requests.value.unshift(data as StaffRequest);
+    playNotificationSound();
   });
 })
 
