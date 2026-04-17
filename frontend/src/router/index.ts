@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import CharView from '../views/CharView.vue';
 import GuestView from '../views/GuestView.vue'
 import StaffDashboard from '../views/StaffDashboard.vue'
 import InventoryView from '../views/InventoryView.vue'
@@ -37,6 +38,11 @@ const router = createRouter({
             path: '/staff/stocktaking',
             name: 'stocktaking',
             component: StocktakingView,
+        },
+        {
+            path: '/char',
+            name: 'cahrs',
+            component: CharView
         },
     ],
 })
