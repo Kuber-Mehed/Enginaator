@@ -2,10 +2,9 @@
   <div class="guest-view min-vh-100 d-flex align-items-center justify-content-center px-3 py-4">
     <div class="guest-shell w-100">
       <div class="room-badge rounded-pill px-4 py-3 text-center mx-auto mb-4">
-        <span class="room-badge-label">Room</span>
-        <span class="room-badge-number">{{ room }}</span>
+          <span class="room-badge-label">Room</span>
+          <span class="room-badge-number">{{ room }}</span>
       </div>
-
       <section class="guest-card card border-0 rounded-5 mx-auto">
         <div class="card-body guest-card-body text-center">
           <div
@@ -18,10 +17,12 @@
             <i :class="micIconClass"></i>
           </div>
 
-          <h1 class="guest-title mb-3">How can we help?</h1>
-          <p class="guest-subtitle mb-4">
-            Tap “Speak Request” or type your request below
-          </p>
+          <div v-if="!currentRequest">
+            <h1 class="guest-title mb-3">How can we help?</h1>
+            <p class="guest-subtitle mb-4">
+              Tap “Speak Request” or type your request below
+            </p>
+          </div>
 
           <div v-if="hasError" class="status-alert status-alert--error rounded-4 mb-4">
             {{ activeErrorMessage }}
@@ -124,15 +125,6 @@
               >
                 {{ isSubmittingManual ? 'Sending...' : 'Send Request' }}
               </button>
-
-              <button
-                  type="button"
-                  class="btn guest-btn guest-btn-secondary rounded-4"
-                  :disabled="isBusy || isListening"
-                  @click="clearDraft"
-              >
-                Clear
-              </button>
             </template>
 
             <template v-else>
@@ -146,10 +138,11 @@
               </button>
             </template>
           </div>
-
+          <div v-if="!currentRequest">
           <p class="helper-text mb-0">
             You can speak naturally or type your request at any time.
           </p>
+          </div>
         </div>
       </section>
     </div>
