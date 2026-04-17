@@ -3,7 +3,9 @@
     <div class="card-body p-4">
       <div class="request-layout d-flex flex-column flex-xl-row justify-content-between gap-4">
         <div class="request-main min-w-0">
-          <div class="fw-bold fs-5 mb-1">Room {{ request.roomNumber }}</div>
+          <div class="fw-bold fs-5 mb-1 room-title">
+            Room {{ request.roomNumber }}
+          </div>
           <p class="mb-2 request-text">{{ request.text }}</p>
 
           <div
@@ -24,7 +26,10 @@
               {{ formattedStatus }}
             </span>
             <span>•</span>
-            <span>{{ timeAgoLabel }}</span>
+            <div class="time">
+
+              <span>{{ timeAgoLabel }}</span>
+            </div>
           </div>
         </div>
 
@@ -158,6 +163,10 @@ const statusBadgeClass = computed(() => {
 .request-actions {
   grid-template-columns: repeat(2, minmax(120px, 1fr));
   min-width: min(100%, 260px);
+}
+
+.room-title, .request-text, .time {
+  color: var(--text-main);
 }
 
 @media (max-width: 575.98px) {
