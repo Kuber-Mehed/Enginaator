@@ -21,16 +21,23 @@ import RequestListItem from './RequestListItem.vue'
 
 type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
 
-interface RequestItem {
+interface RequestItemView {
+  itemName: string
+  quantity: number
+}
+
+interface StaffRequest {
   id: string
-  room: string
+  roomNumber: string
   text: string
   status: RequestStatus
-  timeAgo: string
+  createdAt: string
+  updatedAt?: string
+  requestItems: RequestItemView[]
 }
 
 defineProps<{
-  requests: RequestItem[]
+  requests: StaffRequest[]
 }>()
 
 const emit = defineEmits<{

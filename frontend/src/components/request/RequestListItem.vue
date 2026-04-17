@@ -2,33 +2,62 @@
   <article class="card border rounded-4 request-item-card">
     <div class="card-body p-4">
       <div class="d-flex flex-column flex-xl-row justify-content-between gap-4">
-        <div>
-          <div class="fw-bold fs-5 mb-1">Room {{ request.room }}</div>
+        <div class="request-main">
+          <div class="fw-bold fs-5 mb-1">Room {{ request.roomNumber }}</div>
           <p class="mb-2">{{ request.text }}</p>
+
+          <div
+              v-if="request.requestItems.length > 0"
+              class="small text-secondary-emphasis d-flex flex-wrap gap-2 mb-2"
+          >
+            <span
+                v-for="item in request.requestItems"
+                :key="`${request.id}-${item.itemName}`"
+                class="badge rounded-pill request-chip"
+            >
+              {{ item.quantity }} × {{ item.itemName }}
+            </span>
+          </div>
 
           <div class="small text-secondary-emphasis d-flex flex-wrap align-items-center gap-2">
             <span class="badge rounded-pill text-capitalize" :class="statusBadgeClass">
               {{ formattedStatus }}
             </span>
             <span>•</span>
-            <span>{{ request.timeAgo }}</span>
+            <span>{{ timeAgoLabel }}</span>
           </div>
         </div>
 
         <div class="d-flex flex-wrap gap-2 align-items-start">
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="$emit('set-status', request.id, 'received')">
+          <button
+              type="button"
+              class="btn btn-sm btn-outline-primary"
+              @click="$emit('set-status', request.id, 'received')"
+          >
             Received
           </button>
 
-          <button type="button" class="btn btn-sm btn-outline-warning" @click="$emit('set-status', request.id, 'in_progress')">
+          <button
+              type="button"
+              class="btn btn-sm btn-outline-warning"
+              @click="$emit('set-status', request.id, 'in_progress')"
+          >
             In Progress
           </button>
 
-          <button type="button" class="btn btn-sm btn-outline-success" @click="$emit('set-status', request.id, 'delivered')">
+          <button
+              type="button"
+              class="btn btn-sm btn-outline-success"
+              @click="$emit('set-status', request.id, 'delivered')"
+          >
             Delivered
           </button>
 
-          <button type="button" class="btn btn-sm btn-outline-danger" @click="$emit('set-status', request.id, 'rejected')">
+          <button
+              type="button"
+              class="btn btn-sm btn-outline-danger"
+              @click="$emit('set-status', request.id, 'rejected')"
+          >
             Reject
           </button>
         </div>
@@ -42,16 +71,23 @@ import { computed } from 'vue'
 
 type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
 
-interface RequestItem {
+interface RequestItemView {
+  itemName: string
+  quantity: number
+}
+
+interface StaffRequest {
   id: string
-  room: string
+  roomNumber: string
   text: string
   status: RequestStatus
-  timeAgo: string
+  createdAt: string
+  updatedAt?: string
+  requestItems: RequestItemView[]
 }
 
 const props = defineProps<{
-  request: RequestItem
+  request: StaffRequest
 }>()
 
 defineEmits<{
@@ -59,6 +95,34 @@ defineEmits<{
 }>()
 
 const formattedStatus = computed(() => props.request.status.replace('_', ' '))
+
+const timeAgoLabel = computed(() => {
+  const created = new Date(props.request.createdAt).getTime()
+
+  if (Number.isNaN(created)) {
+    return 'just now'
+  }
+
+  const diffMs = Date.now() - created
+  const diffMin = Math.floor(diffMs / 60000)
+
+  if (diffMin <= 0) {
+    return 'just now'
+  }
+
+  if (diffMin < 60) {
+    return `${diffMin}m ago`
+  }
+
+  const diffHours = Math.floor(diffMin / 60)
+
+  if (diffHours < 24) {
+    return `${diffHours}h ago`
+  }
+
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
+})
 
 const statusBadgeClass = computed(() => {
   switch (props.request.status) {
@@ -80,5 +144,10 @@ const statusBadgeClass = computed(() => {
 .request-item-card {
   background-color: transparent;
   border-color: var(--border-color) !important;
+}
+
+.request-chip {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-main);
 }
 </style>

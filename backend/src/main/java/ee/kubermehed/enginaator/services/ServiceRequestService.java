@@ -102,6 +102,11 @@ public class ServiceRequestService {
         }
 
         serviceRequestRepository.save(serviceRequest);
+        // TODO:
+        // Emit REQUEST_UPDATED event:
+        // - broadcast to all staff dashboards
+        // - route only to the correct guest room connection
+
         // TODO: send WS event about service request update to guests
     }
 }

@@ -46,6 +46,12 @@ public class ServiceRequestController {
             @RequestBody TextRequestDto body
     ) {
         String requestText = body.getRequestText();
+
+        // TODO:
+        // Call serviceRequestService.createTextServiceRequest(roomNumber, requestText)
+        // after text request flow is implemented.
+        // For now this endpoint exists only to preserve frontend contract.
+
         return ResponseEntity.ok().build();
     }
 
@@ -53,5 +59,26 @@ public class ServiceRequestController {
     public ResponseEntity<Void> updateServiceRequest(@PathVariable UUID requestId, @RequestBody boolean isApproved) {
         serviceRequestService.updateServiceRequest(requestId, isApproved);
         return ResponseEntity.ok().build();
+    }
+
+    @RestController
+    @RequestMapping("/api/staff/requests")
+    public class StaffRequestController {
+
+        // TODO:
+        // Inject ServiceRequestService
+
+        // TODO:
+        // GET /api/staff/requests
+        // Return all requests for dashboard startup load, newest first.
+
+        // TODO:
+        // PATCH /api/staff/requests/{requestId}
+        // Accept status update payload:
+        // { "status": "IN_PROGRESS" }
+        // This endpoint should:
+        // 1. update DB
+        // 2. emit REQUEST_UPDATED to staff dashboards
+        // 3. emit room-scoped guest update event to the correct room only
     }
 }
