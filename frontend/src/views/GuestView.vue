@@ -12,7 +12,7 @@
               class="mic-circle rounded-circle d-inline-flex align-items-center justify-content-center mb-4"
               :class="{
               'mic-circle--listening': isListening,
-              'mic-circle--processing': isUploading || isSubmittingManual
+              'mic-circle--processing': isBusy,
             }"
           >
             <i :class="micIconClass"></i>
@@ -86,52 +86,65 @@
             <div class="panel-text panel-text--highlight">{{ aiResponseMessage }}</div>
           </div>
 
-          <div class="manual-text-block mb-4">
+          <div v-if="!isRequestSent" class="manual-text-block mb-4">
             <textarea
                 v-model.trim="manualText"
                 class="form-control guest-textarea rounded-4"
                 rows="3"
                 placeholder="Type your request here..."
-                :disabled="isListening || isUploading || isSubmittingManual"
+                :disabled="isBusy || isListening"
             />
           </div>
 
           <div class="button-group d-flex flex-wrap gap-3 justify-content-center mb-4">
-            <button
-                type="button"
-                class="btn guest-btn guest-btn-primary rounded-4"
-                :disabled="isListening || isUploading || isSubmittingManual"
-                @click="startVoiceCapture"
-            >
-              {{ isListening ? 'Listening...' : 'Speak Request' }}
-            </button>
+            <template v-if="!isRequestSent">
+              <button
+                  type="button"
+                  class="btn guest-btn guest-btn-primary rounded-4"
+                  :disabled="isListening || isBusy"
+                  @click="startVoiceCapture"
+              >
+                {{ isListening ? 'Listening...' : 'Speak Request' }}
+              </button>
 
-            <button
-                type="button"
-                class="btn guest-btn guest-btn-secondary rounded-4"
-                :disabled="!canStopListening"
-                @click="stopVoiceCapture"
-            >
-              Finish Speaking
-            </button>
+              <button
+                  type="button"
+                  class="btn guest-btn guest-btn-secondary rounded-4"
+                  :disabled="!canStopListening"
+                  @click="stopVoiceCapture"
+              >
+                Finish Speaking
+              </button>
 
-            <button
-                type="button"
-                class="btn guest-btn guest-btn-secondary rounded-4"
-                :disabled="!canSubmitManualText"
-                @click="submitManualRequest"
-            >
-              {{ isSubmittingManual ? 'Sending...' : 'Send Request' }}
-            </button>
+              <button
+                  type="button"
+                  class="btn guest-btn guest-btn-secondary rounded-4"
+                  :disabled="!canSubmitManualText"
+                  @click="submitManualRequest"
+              >
+                {{ isSubmittingManual ? 'Sending...' : 'Send Request' }}
+              </button>
 
-            <button
-                type="button"
-                class="btn guest-btn guest-btn-secondary rounded-4"
-                :disabled="isUploading || isListening"
-                @click="clearVoiceState"
-            >
-              Clear
-            </button>
+              <button
+                  type="button"
+                  class="btn guest-btn guest-btn-secondary rounded-4"
+                  :disabled="isBusy || isListening"
+                  @click="clearDraft"
+              >
+                Clear
+              </button>
+            </template>
+
+            <template v-else>
+              <button
+                  type="button"
+                  class="btn guest-btn guest-btn-secondary rounded-4"
+                  :disabled="isBusy || isListening"
+                  @click="redoRequest"
+              >
+                Redo Request
+              </button>
+            </template>
           </div>
 
           <p class="helper-text mb-0">
@@ -145,8 +158,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import api from '@/services/api.ts'
-import {createServiceRequest} from "@/services/service-request-service.ts";
+import { createServiceRequest, postGuestRequestTxt } from '@/services/service-request-service.ts'
 
 interface Props {
   room: string
@@ -175,10 +187,12 @@ const AUTO_STOP_DELAY_MS = 2200
 
 const recognition = ref<any>(null)
 const mediaRecorder = ref<MediaRecorder | null>(null)
+const currentStream = ref<MediaStream | null>(null)
+
 const recordedAudioChunks = ref<Blob[]>([])
 const recordedAudioBlob = ref<Blob | null>(null)
-const currentStream = ref<MediaStream | null>(null)
 const finalVoiceSegments = ref<string[]>([])
+
 const shouldSubmitVoiceOnEnd = ref(false)
 const hasSpokenDuringSession = ref(false)
 const isStartingVoiceCapture = ref(false)
@@ -187,6 +201,7 @@ const silenceTimeoutId = ref<number | null>(null)
 const isListening = ref(false)
 const isUploading = ref(false)
 const isSubmittingManual = ref(false)
+const isRequestSent = ref(false)
 
 const liveTranscript = ref('')
 const lockedVoiceText = ref('')
@@ -214,9 +229,7 @@ onBeforeUnmount(() => {
 
     try {
       recognition.value.abort()
-    } catch {
-      // noop
-    }
+    } catch {}
   }
 
   stopAudioRecordingOnly()
@@ -304,6 +317,9 @@ function initializeSpeechRecognition(): void {
         microphoneError.value = 'We could not capture your request. Please try again.'
         break
     }
+
+    stopAudioRecordingOnly()
+    mediaRecorder.value = null
   }
 
   speechRecognition.onend = async () => {
@@ -313,12 +329,14 @@ function initializeSpeechRecognition(): void {
 
     if (!shouldSubmitVoiceOnEnd.value) {
       stopAudioRecordingOnly()
+      mediaRecorder.value = null
       return
     }
 
     if (!hasSpokenDuringSession.value && !lockedVoiceText.value.trim() && !liveTranscript.value.trim()) {
       shouldSubmitVoiceOnEnd.value = false
       stopAudioRecordingOnly()
+      mediaRecorder.value = null
       microphoneError.value = 'We did not catch a request. Please try again.'
       return
     }
@@ -352,7 +370,7 @@ async function startVoiceCapture(): Promise<void> {
     return
   }
 
-  if (isStartingVoiceCapture.value || isListening.value) {
+  if (isStartingVoiceCapture.value || isListening.value || isBusy.value || isRequestSent.value) {
     return
   }
 
@@ -365,14 +383,8 @@ async function startVoiceCapture(): Promise<void> {
 
   try {
     clearMessagesOnly()
-    manualText.value = ''
-    liveTranscript.value = ''
-    lockedVoiceText.value = ''
-    backendTranscript.value = ''
-    finalVoiceSegments.value = []
-    recordedAudioChunks.value = []
-    recordedAudioBlob.value = null
-    hasSpokenDuringSession.value = false
+    resetDraftOnly()
+
     shouldSubmitVoiceOnEnd.value = true
     clearSilenceTimeout()
 
@@ -401,6 +413,7 @@ async function startVoiceCapture(): Promise<void> {
     isStartingVoiceCapture.value = false
     microphoneError.value = 'Could not access the microphone. Please check browser permissions.'
     stopAudioRecordingOnly()
+    mediaRecorder.value = null
   }
 }
 
@@ -416,6 +429,7 @@ function stopVoiceCapture(): void {
     recognition.value.stop()
   } catch {
     stopAudioRecordingOnly()
+    mediaRecorder.value = null
   }
 }
 
@@ -453,14 +467,15 @@ function waitForRecorderToStop(): Promise<void> {
 }
 
 async function finalizeVoiceCaptureAndSend(): Promise<void> {
-  if (!lockedVoiceText.value.trim() && !liveTranscript.value.trim()) {
+  const normalizedText = lockedVoiceText.value.trim() || liveTranscript.value.trim()
+
+  if (!normalizedText) {
     stopAudioRecordingOnly()
+    mediaRecorder.value = null
     return
   }
 
-  if (!lockedVoiceText.value.trim()) {
-    lockedVoiceText.value = liveTranscript.value.trim()
-  }
+  lockedVoiceText.value = normalizedText
 
   await waitForRecorderToStop()
 
@@ -480,40 +495,31 @@ async function finalizeVoiceCaptureAndSend(): Promise<void> {
 
 async function submitVoiceRequest(): Promise<void> {
   if (!lockedVoiceText.value.trim()) {
+    apiError.value = 'Voice request text is missing. Please try again.'
     return
   }
 
-  if (!recordedAudioBlob.value) {
+  if (!recordedAudioBlob.value || recordedAudioBlob.value.size === 0) {
     apiError.value = 'Audio recording is missing. Please try again.'
+    return
+  }
+
+  if (!props.room.trim()) {
+    apiError.value = 'Room number is required.'
     return
   }
 
   isUploading.value = true
   apiError.value = null
+  popupMessage.value = null
+  aiResponseMessage.value = null
 
   try {
-    const formData = new FormData()
-    formData.append('file', recordedAudioBlob.value, 'guest-request.webm')
-
     await createServiceRequest(props.room, recordedAudioBlob.value)
-
-    backendTranscript.value = lockedVoiceText.value
-    aiResponseMessage.value = 'Your request is on its way to the front desk.'
-
-    currentRequest.value = {
-      id: `${props.room}-${Date.now()}`,
-      roomNumber: props.room,
-      displayText: lockedVoiceText.value,
-      status: 'RECEIVED',
-      createdAt: new Date().toISOString(),
-      backendMessage: 'The team has received your request.',
-    }
-
-    popupMessage.value = {
-      title: 'Request sent',
-      text: 'Your voice request has been shared with the hotel staff.',
-      type: 'success',
-    }
+    applySuccessfulRequestState(
+        lockedVoiceText.value,
+        'Your voice request has been shared with the hotel staff.'
+    )
   } catch (error: any) {
     apiError.value =
         error?.response?.data?.message ||
@@ -528,7 +534,9 @@ async function submitVoiceRequest(): Promise<void> {
 }
 
 async function submitManualRequest(): Promise<void> {
-  if (!manualText.value.trim()) {
+  const requestText = manualText.value.trim()
+
+  if (!requestText) {
     return
   }
 
@@ -543,33 +551,12 @@ async function submitManualRequest(): Promise<void> {
   aiResponseMessage.value = null
 
   try {
-    const requestText = manualText.value.trim()
-    const manualRequestBlob = new Blob([requestText], { type: 'text/plain' })
-    const formData = new FormData()
-    formData.append('file', manualRequestBlob, 'guest-request.txt')
-    await postGuestRequestTxt(props.room, recordedAudioBlob.value)
-    await api.post(`/room/${props.room}`, formData)
-
+    await postGuestRequestTxt(props.room, requestText)
     backendTranscript.value = requestText
-    currentRequest.value = {
-      id: `${props.room}-${Date.now()}`,
-      roomNumber: props.room,
-      displayText: requestText,
-      status: 'RECEIVED',
-      createdAt: new Date().toISOString(),
-      backendMessage: 'The team has received your request.',
-    }
-
-    popupMessage.value = {
-      title: 'Request sent',
-      text: 'Your request has been shared with the hotel staff.',
-      type: 'success',
-    }
-
-    aiResponseMessage.value = 'Your request is on its way to the front desk.'
-    manualText.value = ''
     liveTranscript.value = ''
     lockedVoiceText.value = ''
+    manualText.value = ''
+    applySuccessfulRequestState(requestText, 'Your request has been shared with the hotel staff.')
   } catch (error: any) {
     apiError.value =
         error?.response?.data?.message ||
@@ -580,23 +567,49 @@ async function submitManualRequest(): Promise<void> {
   }
 }
 
+function applySuccessfulRequestState(displayText: string, popupText: string): void {
+  backendTranscript.value = displayText
+  currentRequest.value = {
+    id: `${props.room}-${Date.now()}`,
+    roomNumber: props.room,
+    displayText,
+    status: 'RECEIVED',
+    createdAt: new Date().toISOString(),
+    backendMessage: 'The team has received your request.',
+  }
+
+  popupMessage.value = {
+    title: 'Request sent',
+    text: popupText,
+    type: 'success',
+  }
+
+  aiResponseMessage.value = 'Your request is on its way to the front desk.'
+  isRequestSent.value = true
+}
+
 function clearMessagesOnly(): void {
   microphoneError.value = null
   apiError.value = null
   popupMessage.value = null
 }
 
-function clearVoiceState(): void {
-  shouldSubmitVoiceOnEnd.value = false
-  clearSilenceTimeout()
+function resetDraftOnly(): void {
   liveTranscript.value = ''
   lockedVoiceText.value = ''
   backendTranscript.value = ''
+  manualText.value = ''
   recordedAudioBlob.value = null
   recordedAudioChunks.value = []
   finalVoiceSegments.value = []
   hasSpokenDuringSession.value = false
+}
+
+function clearDraft(): void {
+  shouldSubmitVoiceOnEnd.value = false
+  clearSilenceTimeout()
   clearMessagesOnly()
+  resetDraftOnly()
 
   if (recognition.value && (isListening.value || isStartingVoiceCapture.value)) {
     recognition.value.abort()
@@ -606,6 +619,13 @@ function clearVoiceState(): void {
   isListening.value = false
   isStartingVoiceCapture.value = false
   mediaRecorder.value = null
+}
+
+function redoRequest(): void {
+  clearDraft()
+  isRequestSent.value = false
+  currentRequest.value = null
+  aiResponseMessage.value = null
 }
 
 function getStatusLabel(status: string): string {
@@ -633,19 +653,21 @@ function getStatusBadgeClass(status: string): string {
 const hasError = computed(() => Boolean(microphoneError.value || apiError.value))
 const activeErrorMessage = computed(() => microphoneError.value || apiError.value || '')
 const canStopListening = computed(() => isListening.value || isStartingVoiceCapture.value)
+const isBusy = computed(() => isUploading.value || isSubmittingManual.value)
 
 const canSubmitManualText = computed(() => {
   return (
       manualText.value.trim().length > 0 &&
       !isSubmittingManual.value &&
-      !isListening.value &&
       !isUploading.value &&
-      !isStartingVoiceCapture.value
+      !isListening.value &&
+      !isStartingVoiceCapture.value &&
+      !isRequestSent.value
   )
 })
 
 const micIconClass = computed(() => {
-  if (isUploading.value || isSubmittingManual.value) {
+  if (isBusy.value) {
     return 'bi bi-arrow-repeat fs-1'
   }
 
@@ -759,153 +781,135 @@ const popupAlertCustomClass = computed(() => {
 
 .status-alert--error {
   background: rgba(127, 29, 29, 0.18);
-  border-color: rgba(220, 38, 38, 0.7);
-  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
 }
 
 .status-alert--success {
-  background: rgba(20, 83, 45, 0.18);
-  border-color: rgba(34, 197, 94, 0.6);
-  color: #86efac;
+  background: rgba(20, 83, 45, 0.2);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #dcfce7;
 }
 
 .status-alert--warning {
   background: rgba(120, 53, 15, 0.18);
-  border-color: rgba(245, 158, 11, 0.6);
-  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fde68a;
 }
 
 .status-alert--info {
-  background: rgba(30, 64, 175, 0.16);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #93c5fd;
+  background: rgba(30, 64, 175, 0.18);
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #dbeafe;
 }
 
 .content-panel {
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .panel-label {
-  color: #94a3b8;
-  font-size: 0.8rem;
+  color: #93c5fd;
+  font-size: 0.82rem;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
 }
 
 .panel-text {
   color: #e2e8f0;
-  font-size: 1rem;
-  line-height: 1.55;
+  font-size: 1.08rem;
+  line-height: 1.65;
 }
 
 .panel-text--highlight {
   color: #f8fafc;
+  font-weight: 600;
 }
 
 .panel-secondary-text {
   color: #cbd5e1;
-  font-size: 0.95rem;
+  font-size: 0.96rem;
 }
 
 .manual-text-block {
   max-width: 640px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 0 auto;
 }
 
 .guest-textarea {
-  background: rgba(15, 23, 42, 0.52);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  resize: none;
+  min-height: 140px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: #f8fafc;
   padding: 1rem 1.15rem;
-  min-height: 96px;
+  font-size: 1.05rem;
+  resize: vertical;
 }
 
 .guest-textarea::placeholder {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .guest-textarea:focus {
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(15, 23, 42, 0.96);
   color: #f8fafc;
-  border-color: rgba(59, 130, 246, 0.6);
-  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.14);
-}
-
-.guest-textarea:disabled {
-  opacity: 0.65;
-}
-
-.button-group {
-  max-width: 640px;
-  margin-left: auto;
-  margin-right: auto;
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.18);
 }
 
 .guest-btn {
   min-width: 180px;
-  padding: 1rem 1.5rem;
+  padding: 0.95rem 1.35rem;
+  font-size: 1.2rem;
   font-weight: 700;
   border: 1px solid transparent;
 }
 
 .guest-btn-primary {
-  background: rgba(71, 85, 105, 0.52);
-  color: #f1f5f9;
-  border-color: rgba(148, 163, 184, 0.2);
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #f8fafc;
 }
 
-.guest-btn-primary:hover:not(:disabled) {
-  background: rgba(71, 85, 105, 0.72);
-  color: #ffffff;
+.guest-btn-primary:hover {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  color: #fff;
 }
 
 .guest-btn-secondary {
-  background: rgba(71, 85, 105, 0.52);
-  color: #f1f5f9;
-  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(51, 65, 85, 0.95);
+  border-color: rgba(148, 163, 184, 0.16);
+  color: #f8fafc;
 }
 
-.guest-btn-secondary:hover:not(:disabled) {
-  background: rgba(71, 85, 105, 0.72);
-  color: #ffffff;
+.guest-btn-secondary:hover {
+  background: rgba(71, 85, 105, 1);
+  color: #fff;
 }
 
 .guest-btn:disabled {
-  opacity: 0.45;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .helper-text {
   color: #94a3b8;
-  font-size: 1rem;
+  font-size: 0.98rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .guest-card-body {
-    padding: 2rem 1.25rem;
+    padding: 2.25rem 1.25rem;
   }
 
   .mic-circle {
-    width: 108px;
-    height: 108px;
-  }
-
-  .mic-circle i {
-    font-size: 3rem;
-  }
-
-  .guest-subtitle {
-    font-size: 1.05rem;
+    width: 116px;
+    height: 116px;
   }
 
   .guest-btn {
     width: 100%;
-    min-width: 0;
   }
 
   .button-group {

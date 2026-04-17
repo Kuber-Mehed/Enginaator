@@ -8,6 +8,7 @@ import ee.kubermehed.enginaator.models.RequestItem;
 import ee.kubermehed.enginaator.models.ServiceRequest;
 import ee.kubermehed.enginaator.repositories.InventoryItemRepository;
 import ee.kubermehed.enginaator.repositories.ServiceRequestRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,11 +28,12 @@ public class ServiceRequestService {
     private final InventoryItemRepository inventoryItemRepository;
 
     public List<RequestViewDTO> getServiceRequests() {
-         return serviceRequestRepository.findAllByOrderByCreatedAtDesc().stream()
+        return serviceRequestRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(RequestViewDTO::fromEntity)
                 .toList();
     }
 
+    @Transactional
     public void createServiceRequest(String roomNumber, MultipartFile file) {
         List<ParsedItemDTO> parsedItems = parserService.parseServiceRequest(file);
         List<String> itemNames = parsedItems.stream().map(ParsedItemDTO::getItemName).toList();
@@ -69,6 +71,7 @@ public class ServiceRequestService {
         // TODO: send WS event about new service request
     }
 
+    @Transactional
     public void updateServiceRequest(UUID requestId, boolean isApproved) {
         ServiceRequest serviceRequest = serviceRequestRepository.findById(requestId)
                 .orElseThrow(() -> new RuntimeException("Service request not found"));

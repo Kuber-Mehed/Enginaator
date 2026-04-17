@@ -1,6 +1,7 @@
 package ee.kubermehed.enginaator.controllers;
 
 import ee.kubermehed.enginaator.dtos.RequestViewDTO;
+import ee.kubermehed.enginaator.dtos.TextRequestDto;
 import ee.kubermehed.enginaator.services.ServiceRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -42,8 +43,9 @@ public class ServiceRequestController {
     @PostMapping("/room/{roomNumber}/text")
     public ResponseEntity<?> postTextRequest(
             @PathVariable String roomNumber,
-            @RequestBody String requestText
+            @RequestBody TextRequestDto body
     ) {
+        String requestText = body.getRequestText();
         return ResponseEntity.ok().build();
     }
 
