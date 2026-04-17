@@ -69,13 +69,37 @@ const formattedMonth = computed(() => {
   return date.toLocaleString('default', { month: 'short', year: 'numeric' })
 })
 
+function getMockData(): MonthlyReportData {
+  return {
+    month: selectedMonth.value,
+    totalRequests: 47,
+    totalItemsConsumed: 183,
+    uniqueItemTypes: 12,
+    reconciliationCount: 3,
+    itemConsumption: [
+      { itemName: 'Bath Towel',    quantityConsumed: 48, requestCount: 21, avgPerRequest: 2.3 },
+      { itemName: 'Bottled Water', quantityConsumed: 36, requestCount: 36, avgPerRequest: 1.0 },
+      { itemName: 'Shampoo',       quantityConsumed: 29, requestCount: 14, avgPerRequest: 2.1 },
+      { itemName: 'Coffee Pods',   quantityConsumed: 41, requestCount: 18, avgPerRequest: 2.3 },
+      { itemName: 'Toilet Paper',  quantityConsumed: 29, requestCount: 15, avgPerRequest: 1.9 },
+    ],
+    reconciliationSummary: [
+      { itemName: 'Iron',          adjustment: -5, reason: 'damaged',        date: '2026-04-17T10:00:00' },
+      { itemName: 'Bath Towel',    adjustment:  5, reason: 'supplier_error', date: '2026-04-17T10:00:00' },
+      { itemName: 'Bottled Water', adjustment: -8, reason: 'miscounted',     date: '2026-04-17T10:00:00' },
+    ],
+  }
+}
+
 async function loadReport(): Promise<void> {
   isLoading.value = true
   apiError.value = null
   try {
-    const res = await fetch(`/api/staff/reports/monthly?month=${selectedMonth.value}`)
-    if (!res.ok) throw new Error('Failed to load report')
-    const data: MonthlyReportData = await res.json()
+    // TODO: replace with real fetch when backend is ready
+    // const res = await fetch(`/api/staff/reports/monthly?month=${selectedMonth.value}`)
+    // if (!res.ok) throw new Error('Failed to load report')
+    // const data: MonthlyReportData = await res.json()
+    const data = getMockData()
     totalRequests.value = data.totalRequests
     totalItemsConsumed.value = data.totalItemsConsumed
     uniqueItemTypes.value = data.uniqueItemTypes
