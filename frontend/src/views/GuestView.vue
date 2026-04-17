@@ -37,7 +37,7 @@
           </div>
 
           <div
-              v-if="liveTranscript || lockedVoiceText || backendTranscript"
+              v-if="!currentRequest && (liveTranscript || lockedVoiceText || backendTranscript)"
               class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start"
           >
             <div v-if="liveTranscript" class="mb-3">
@@ -45,12 +45,12 @@
               <div class="panel-text">{{ liveTranscript }}</div>
             </div>
 
-            <div v-if="lockedVoiceText" class="mb-3">
+            <div v-if="false && (lockedVoiceText)" class="mb-3">
               <div class="panel-label">Your request</div>
               <div class="panel-text">{{ lockedVoiceText }}</div>
             </div>
 
-            <div v-if="backendTranscript">
+            <div v-if="false && (backendTranscript)">
               <div class="panel-label">Sent to staff</div>
               <div class="panel-text panel-text--highlight">{{ backendTranscript }}</div>
             </div>
