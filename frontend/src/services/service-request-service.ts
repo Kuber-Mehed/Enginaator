@@ -18,3 +18,10 @@ export const postGuestRequestTxt = async (roomNumber: string, requestText: strin
         requestText,
     })
 }
+
+export const updateServiceRequest = async (
+    requestId: string,
+    isApproved: boolean
+): Promise<void> => {
+    await api.post(`/guest/service-request/${requestId}`, isApproved)
+}
