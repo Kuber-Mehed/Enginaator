@@ -28,13 +28,22 @@ public class ServiceRequestController {
 //    }
 
     @PostMapping("/room/{roomNumber}")
-    public ResponseEntity<Void> createServiceRequest(@RequestBody MultipartFile file,
+    public ResponseEntity<Void> createServiceRequest(@RequestParam("file") MultipartFile file,
                                                      @PathVariable String roomNumber) {
+        System.out.println("got smth");
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
         serviceRequestService.createServiceRequest(roomNumber, file);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/room/{roomNumber}/text")
+    public ResponseEntity<?> postTextRequest(
+            @PathVariable String roomNumber,
+            @RequestBody String requestText
+    ) {
         return ResponseEntity.ok().build();
     }
 

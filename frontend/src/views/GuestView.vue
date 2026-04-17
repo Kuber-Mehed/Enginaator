@@ -18,9 +18,9 @@
             <i :class="micIconClass"></i>
           </div>
 
-          <h1 class="guest-title mb-3">Say "Hey SVARA"</h1>
+          <h1 class="guest-title mb-3">How can we help?</h1>
           <p class="guest-subtitle mb-4">
-            I'm here to help with your room service needs
+            Tap “Speak Request” or type your request below
           </p>
 
           <div v-if="hasError" class="status-alert status-alert--error rounded-4 mb-4">
@@ -36,27 +36,31 @@
             <div>{{ popupMessage.text }}</div>
           </div>
 
-          <!-- Live transcript -->
-          <div v-if="liveTranscript || lockedVoiceText || backendTranscript" class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start">
+          <div
+              v-if="liveTranscript || lockedVoiceText || backendTranscript"
+              class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start"
+          >
             <div v-if="liveTranscript" class="mb-3">
-              <div class="panel-label">Live transcript</div>
+              <div class="panel-label">Listening</div>
               <div class="panel-text">{{ liveTranscript }}</div>
             </div>
 
             <div v-if="lockedVoiceText" class="mb-3">
-              <div class="panel-label">Captured speech</div>
+              <div class="panel-label">Your request</div>
               <div class="panel-text">{{ lockedVoiceText }}</div>
             </div>
 
             <div v-if="backendTranscript">
-              <div class="panel-label">Backend corrected text</div>
+              <div class="panel-label">Sent to staff</div>
               <div class="panel-text panel-text--highlight">{{ backendTranscript }}</div>
             </div>
           </div>
 
-          <!-- Current request -->
-          <div v-if="currentRequest" class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start">
-            <div class="panel-label">Your current request</div>
+          <div
+              v-if="currentRequest"
+              class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start"
+          >
+            <div class="panel-label">Current request</div>
             <div class="panel-text mb-3">{{ currentRequest.displayText }}</div>
 
             <div class="d-flex flex-wrap align-items-center gap-2">
@@ -74,19 +78,20 @@
             </div>
           </div>
 
-          <!-- AI response -->
-          <div v-if="aiResponseMessage" class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start">
-            <div class="panel-label">SVARA response</div>
+          <div
+              v-if="aiResponseMessage"
+              class="content-panel rounded-4 p-3 p-md-4 mb-4 text-start"
+          >
+            <div class="panel-label">Update</div>
             <div class="panel-text panel-text--highlight">{{ aiResponseMessage }}</div>
           </div>
 
-          <!-- Manual text area -->
           <div class="manual-text-block mb-4">
             <textarea
                 v-model.trim="manualText"
                 class="form-control guest-textarea rounded-4"
                 rows="3"
-                placeholder="Or type your request here..."
+                placeholder="Type your request here..."
                 :disabled="isListening || isUploading || isSubmittingManual"
             />
           </div>
@@ -98,7 +103,16 @@
                 :disabled="isListening || isUploading || isSubmittingManual"
                 @click="startVoiceCapture"
             >
-              {{ isListening ? 'Listening...' : 'Start Listening' }}
+              {{ isListening ? 'Listening...' : 'Speak Request' }}
+            </button>
+
+            <button
+                type="button"
+                class="btn guest-btn guest-btn-secondary rounded-4"
+                :disabled="!canStopListening"
+                @click="stopVoiceCapture"
+            >
+              Finish Speaking
             </button>
 
             <button
@@ -107,7 +121,7 @@
                 :disabled="!canSubmitManualText"
                 @click="submitManualRequest"
             >
-              {{ isSubmittingManual ? 'Sending...' : 'Send' }}
+              {{ isSubmittingManual ? 'Sending...' : 'Send Request' }}
             </button>
 
             <button
@@ -121,7 +135,7 @@
           </div>
 
           <p class="helper-text mb-0">
-            Voice commands work best in a quiet environment
+            You can speak naturally or type your request at any time.
           </p>
         </div>
       </section>
@@ -130,37 +144,15 @@
 </template>
 
 <script setup lang="ts">
-/**
- * GuestView
- *
- * Main goals:
- * - show live speech text while the guest is speaking
- * - lock the captured voice text so the guest cannot edit it
- * - send recorded audio file to backend
- * - receive corrected text + AI response + request status from backend
- * - support easier manual text requests
- *
- * Important note:
- * Browser-native speech recognition is used for live transcript.
- * Reliable always-on wake-word detection ("Hey SVARA") usually needs
- * a dedicated wake-word engine. In this version we validate the phrase
- * after recognition result is captured.
- */
-
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import api from '@/services/api.ts'
+import {createServiceRequest} from "@/services/service-request-service.ts";
 
 interface Props {
   room: string
 }
 
-type RequestStatus =
-    | 'RECEIVED'
-    | 'IN_PROGRESS'
-    | 'DELIVERED'
-    | 'REJECTED'
-    | 'CANCELLED'
-    | 'APPROVED'
-    | 'DECLINED'
+type RequestStatus = 'RECEIVED' | 'IN_PROGRESS' | 'DELIVERED' | 'REJECTED'
 
 interface ActiveRequest {
   id: string
@@ -177,97 +169,65 @@ interface PopupMessage {
   type: 'success' | 'danger' | 'warning' | 'info'
 }
 
-interface BackendVoiceResponse {
-  requestId: string
-  correctedText: string
-  aiMessage: string
-  status: RequestStatus
-  accepted: boolean
-  backendMessage?: string
-}
-
 const props = defineProps<Props>()
 
-/**
- * Browser speech recognition and audio recording states.
- */
+const AUTO_STOP_DELAY_MS = 2200
+
 const recognition = ref<any>(null)
 const mediaRecorder = ref<MediaRecorder | null>(null)
 const recordedAudioChunks = ref<Blob[]>([])
 const recordedAudioBlob = ref<Blob | null>(null)
 const currentStream = ref<MediaStream | null>(null)
+const finalVoiceSegments = ref<string[]>([])
+const shouldSubmitVoiceOnEnd = ref(false)
+const hasSpokenDuringSession = ref(false)
+const isStartingVoiceCapture = ref(false)
+const silenceTimeoutId = ref<number | null>(null)
 
-const popupAlertCustomClass = computed(() => {
-  switch (popupMessage.value?.type) {
-    case 'success':
-      return 'status-alert--success'
-    case 'danger':
-      return 'status-alert--error'
-    case 'warning':
-      return 'status-alert--warning'
-    default:
-      return 'status-alert--info'
-  }
-})
-
-/**
- * UI states.
- */
 const isListening = ref(false)
 const isUploading = ref(false)
 const isSubmittingManual = ref(false)
 
-/**
- * Voice transcript states.
- *
- * liveTranscript:
- * - updates while guest speaks
- *
- * lockedVoiceText:
- * - final client-side text captured from browser speech recognition
- * - cannot be edited by the guest
- *
- * backendTranscript:
- * - corrected / improved text returned by backend
- */
 const liveTranscript = ref('')
 const lockedVoiceText = ref('')
 const backendTranscript = ref('')
-
-/**
- * Manual typed request text.
- */
 const manualText = ref('')
 
-/**
- * Feedback and result states.
- */
 const microphoneError = ref<string | null>(null)
 const apiError = ref<string | null>(null)
 const popupMessage = ref<PopupMessage | null>(null)
 const aiResponseMessage = ref<string | null>(null)
 const currentRequest = ref<ActiveRequest | null>(null)
 
-/**
- * Wake phrase required before voice request is accepted.
- */
-const wakePhrase = 'hey svara'
-
 onMounted(() => {
   initializeSpeechRecognition()
-  fetchRoomRequests()
 })
 
-/**
- * Initializes browser speech recognition if supported.
- */
+onBeforeUnmount(() => {
+  clearSilenceTimeout()
+
+  if (recognition.value) {
+    recognition.value.onstart = null
+    recognition.value.onresult = null
+    recognition.value.onerror = null
+    recognition.value.onend = null
+
+    try {
+      recognition.value.abort()
+    } catch {
+      // noop
+    }
+  }
+
+  stopAudioRecordingOnly()
+})
+
 function initializeSpeechRecognition(): void {
   const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
   if (!SpeechRecognition) {
-    microphoneError.value =
-        'Speech recognition is not supported in this browser.'
+    microphoneError.value = 'Voice requests are not supported in this browser.'
     return
   }
 
@@ -278,6 +238,7 @@ function initializeSpeechRecognition(): void {
 
   speechRecognition.onstart = () => {
     isListening.value = true
+    isStartingVoiceCapture.value = false
     microphoneError.value = null
     apiError.value = null
     popupMessage.value = null
@@ -285,81 +246,146 @@ function initializeSpeechRecognition(): void {
     liveTranscript.value = ''
     lockedVoiceText.value = ''
     backendTranscript.value = ''
+    finalVoiceSegments.value = []
+    hasSpokenDuringSession.value = false
+    clearSilenceTimeout()
   }
 
   speechRecognition.onresult = (event: any) => {
-    let currentLiveText = ''
-    let finalText = ''
+    let interimText = ''
 
     for (let i = event.resultIndex; i < event.results.length; i += 1) {
-      const piece = event.results[i][0].transcript
+      const piece = event.results[i][0].transcript.trim()
+
+      if (!piece) {
+        continue
+      }
+
+      hasSpokenDuringSession.value = true
 
       if (event.results[i].isFinal) {
-        finalText += piece
+        finalVoiceSegments.value.push(piece)
       } else {
-        currentLiveText += piece
+        interimText += `${piece} `
       }
     }
 
-    liveTranscript.value = `${finalText} ${currentLiveText}`.trim()
+    const finalText = finalVoiceSegments.value.join(' ').trim()
+    liveTranscript.value = `${finalText} ${interimText}`.trim()
+    lockedVoiceText.value = finalText || liveTranscript.value.trim()
 
-    if (finalText.trim()) {
-      lockedVoiceText.value = finalText.trim()
+    if (hasSpokenDuringSession.value) {
+      restartSilenceTimeout()
     }
   }
 
   speechRecognition.onerror = (event: any) => {
     isListening.value = false
+    isStartingVoiceCapture.value = false
+    clearSilenceTimeout()
+
+    if (event.error === 'aborted') {
+      return
+    }
+
+    shouldSubmitVoiceOnEnd.value = false
 
     switch (event.error) {
       case 'no-speech':
-        microphoneError.value = 'No speech detected. Please try again.'
+        microphoneError.value = 'We could not hear your request. Please try again.'
         break
       case 'not-allowed':
-        microphoneError.value =
-            'Microphone access denied. Please allow microphone access.'
+        microphoneError.value = 'Microphone access is turned off. Please allow microphone access.'
         break
       case 'network':
-        microphoneError.value = 'Network error. Please check your connection.'
+        microphoneError.value = 'There was a connection problem. Please try again.'
         break
       default:
-        microphoneError.value = `Speech recognition error: ${event.error}`
+        microphoneError.value = 'We could not capture your request. Please try again.'
         break
     }
-
-    stopAudioRecordingOnly()
   }
 
   speechRecognition.onend = async () => {
     isListening.value = false
+    isStartingVoiceCapture.value = false
+    clearSilenceTimeout()
+
+    if (!shouldSubmitVoiceOnEnd.value) {
+      stopAudioRecordingOnly()
+      return
+    }
+
+    if (!hasSpokenDuringSession.value && !lockedVoiceText.value.trim() && !liveTranscript.value.trim()) {
+      shouldSubmitVoiceOnEnd.value = false
+      stopAudioRecordingOnly()
+      microphoneError.value = 'We did not catch a request. Please try again.'
+      return
+    }
+
+    shouldSubmitVoiceOnEnd.value = false
     await finalizeVoiceCaptureAndSend()
   }
 
   recognition.value = speechRecognition
 }
 
-/**
- * Starts both:
- * - browser speech recognition for live transcript
- * - MediaRecorder for raw audio file
- */
+function clearSilenceTimeout(): void {
+  if (silenceTimeoutId.value !== null) {
+    window.clearTimeout(silenceTimeoutId.value)
+    silenceTimeoutId.value = null
+  }
+}
+
+function restartSilenceTimeout(): void {
+  clearSilenceTimeout()
+  silenceTimeoutId.value = window.setTimeout(() => {
+    if (isListening.value) {
+      stopVoiceCapture()
+    }
+  }, AUTO_STOP_DELAY_MS)
+}
+
 async function startVoiceCapture(): Promise<void> {
   if (!recognition.value) {
-    microphoneError.value =
-        'Speech recognition is not available in this browser.'
+    microphoneError.value = 'Voice requests are not available in this browser.'
     return
   }
 
+  if (isStartingVoiceCapture.value || isListening.value) {
+    return
+  }
+
+  if (!props.room.trim()) {
+    apiError.value = 'Room number is required.'
+    return
+  }
+
+  isStartingVoiceCapture.value = true
+
   try {
     clearMessagesOnly()
+    manualText.value = ''
+    liveTranscript.value = ''
+    lockedVoiceText.value = ''
+    backendTranscript.value = ''
+    finalVoiceSegments.value = []
+    recordedAudioChunks.value = []
+    recordedAudioBlob.value = null
+    hasSpokenDuringSession.value = false
+    shouldSubmitVoiceOnEnd.value = true
+    clearSilenceTimeout()
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     currentStream.value = stream
 
-    recordedAudioChunks.value = []
-    recordedAudioBlob.value = null
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : ''
 
-    const recorder = new MediaRecorder(stream)
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
     mediaRecorder.value = recorder
 
     recorder.ondataavailable = (event: BlobEvent) => {
@@ -368,29 +394,31 @@ async function startVoiceCapture(): Promise<void> {
       }
     }
 
-    recorder.start()
+    recorder.start(250)
     recognition.value.start()
-  } catch (error) {
-    microphoneError.value =
-        'Could not access the microphone. Please check browser permissions.'
-  }
-}
-
-/**
- * Stops recognition manually.
- * Final upload happens in recognition.onend.
- */
-function stopVoiceCapture(): void {
-  if (recognition.value && isListening.value) {
-    recognition.value.stop()
-  } else {
+  } catch {
+    shouldSubmitVoiceOnEnd.value = false
+    isStartingVoiceCapture.value = false
+    microphoneError.value = 'Could not access the microphone. Please check browser permissions.'
     stopAudioRecordingOnly()
   }
 }
 
-/**
- * Stops only the audio recorder and media stream.
- */
+function stopVoiceCapture(): void {
+  clearSilenceTimeout()
+
+  if (!recognition.value || (!isListening.value && !isStartingVoiceCapture.value)) {
+    stopAudioRecordingOnly()
+    return
+  }
+
+  try {
+    recognition.value.stop()
+  } catch {
+    stopAudioRecordingOnly()
+  }
+}
+
 function stopAudioRecordingOnly(): void {
   if (mediaRecorder.value && mediaRecorder.value.state !== 'inactive') {
     mediaRecorder.value.stop()
@@ -402,45 +430,61 @@ function stopAudioRecordingOnly(): void {
   }
 }
 
-/**
- * Final step after speech recognition ends:
- * - stop and build audio blob
- * - validate wake phrase
- * - upload voice request to backend
- */
+function waitForRecorderToStop(): Promise<void> {
+  return new Promise((resolve) => {
+    const recorder = mediaRecorder.value
+
+    if (!recorder || recorder.state === 'inactive') {
+      resolve()
+      return
+    }
+
+    const previousOnStop = recorder.onstop
+
+    recorder.onstop = (event: Event) => {
+      if (typeof previousOnStop === 'function') {
+        previousOnStop.call(recorder, event)
+      }
+      resolve()
+    }
+
+    recorder.stop()
+  })
+}
+
 async function finalizeVoiceCaptureAndSend(): Promise<void> {
-  stopAudioRecordingOnly()
+  if (!lockedVoiceText.value.trim() && !liveTranscript.value.trim()) {
+    stopAudioRecordingOnly()
+    return
+  }
 
   if (!lockedVoiceText.value.trim()) {
-    return
+    lockedVoiceText.value = liveTranscript.value.trim()
   }
 
-  if (!startsWithWakePhrase(lockedVoiceText.value)) {
-    popupMessage.value = {
-      title: 'Wake phrase not detected',
-      text: 'Please start your voice request with “Hey SVARA”.',
-      type: 'warning',
-    }
-    return
-  }
+  await waitForRecorderToStop()
 
   if (recordedAudioChunks.value.length > 0) {
     recordedAudioBlob.value = new Blob(recordedAudioChunks.value, {
-      type: 'audio/webm',
+      type: mediaRecorder.value?.mimeType || 'audio/webm',
     })
+  }
+
+  if (currentStream.value) {
+    currentStream.value.getTracks().forEach((track) => track.stop())
+    currentStream.value = null
   }
 
   await submitVoiceRequest()
 }
 
-/**
- * Sends the locked raw client transcript + recorded audio file to backend.
- *
- * Frontend does NOT edit the spoken text.
- * Backend can later return corrected text.
- */
 async function submitVoiceRequest(): Promise<void> {
   if (!lockedVoiceText.value.trim()) {
+    return
+  }
+
+  if (!recordedAudioBlob.value) {
+    apiError.value = 'Audio recording is missing. Please try again.'
     return
   }
 
@@ -449,61 +493,47 @@ async function submitVoiceRequest(): Promise<void> {
 
   try {
     const formData = new FormData()
-    formData.append('roomNumber', props.room)
-    formData.append('rawTranscript', lockedVoiceText.value)
+    formData.append('file', recordedAudioBlob.value, 'guest-request.webm')
 
-    if (recordedAudioBlob.value) {
-      formData.append(
-          'audio',
-          recordedAudioBlob.value,
-          `room-${props.room}-${Date.now()}.webm`
-      )
-    }
+    await createServiceRequest(props.room, recordedAudioBlob.value)
 
-    const response = await fetch('/api/guest/voice-requests', {
-      method: 'POST',
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to submit voice request.')
-    }
-
-    const data: BackendVoiceResponse = await response.json()
-
-    backendTranscript.value = data.correctedText
-    aiResponseMessage.value = data.aiMessage
+    backendTranscript.value = lockedVoiceText.value
+    aiResponseMessage.value = 'Your request is on its way to the front desk.'
 
     currentRequest.value = {
-      id: data.requestId,
+      id: `${props.room}-${Date.now()}`,
       roomNumber: props.room,
-      displayText: data.correctedText,
-      status: data.status,
+      displayText: lockedVoiceText.value,
+      status: 'RECEIVED',
       createdAt: new Date().toISOString(),
-      backendMessage: data.backendMessage || data.aiMessage,
+      backendMessage: 'The team has received your request.',
     }
 
     popupMessage.value = {
-      title: data.accepted ? 'Request sent' : 'Request needs attention',
-      text: data.aiMessage,
-      type: data.accepted ? 'success' : 'warning',
+      title: 'Request sent',
+      text: 'Your voice request has been shared with the hotel staff.',
+      type: 'success',
     }
-  } catch (error) {
+  } catch (error: any) {
     apiError.value =
-        error instanceof Error
-            ? error.message
-            : 'An error occurred while sending the voice request.'
+        error?.response?.data?.message ||
+        error?.message ||
+        'We could not send your voice request. Please try again.'
   } finally {
     isUploading.value = false
+    recordedAudioChunks.value = []
+    recordedAudioBlob.value = null
+    mediaRecorder.value = null
   }
 }
 
-/**
- * Manual text request flow.
- * Easier and separate from voice.
- */
 async function submitManualRequest(): Promise<void> {
   if (!manualText.value.trim()) {
+    return
+  }
+
+  if (!props.room.trim()) {
+    apiError.value = 'Room number is required.'
     return
   }
 
@@ -513,115 +543,69 @@ async function submitManualRequest(): Promise<void> {
   aiResponseMessage.value = null
 
   try {
-    const response = await fetch('/api/guest/requests', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        roomNumber: props.room,
-        text: manualText.value,
-        source: 'manual',
-      }),
-    })
+    const requestText = manualText.value.trim()
+    const manualRequestBlob = new Blob([requestText], { type: 'text/plain' })
+    const formData = new FormData()
+    formData.append('file', manualRequestBlob, 'guest-request.txt')
+    await postGuestRequestTxt(props.room, recordedAudioBlob.value)
+    await api.post(`/room/${props.room}`, formData)
 
-    if (!response.ok) {
-      throw new Error('Failed to submit manual request.')
-    }
-
-    const data = await response.json()
-
+    backendTranscript.value = requestText
     currentRequest.value = {
-      id: data.id,
+      id: `${props.room}-${Date.now()}`,
       roomNumber: props.room,
-      displayText: data.text,
-      status: data.status,
-      createdAt: data.createdAt,
-      backendMessage: data.message,
+      displayText: requestText,
+      status: 'RECEIVED',
+      createdAt: new Date().toISOString(),
+      backendMessage: 'The team has received your request.',
     }
 
     popupMessage.value = {
       title: 'Request sent',
-      text: data.message || 'Your request has been sent successfully.',
+      text: 'Your request has been shared with the hotel staff.',
       type: 'success',
     }
 
+    aiResponseMessage.value = 'Your request is on its way to the front desk.'
     manualText.value = ''
-  } catch (error) {
+    liveTranscript.value = ''
+    lockedVoiceText.value = ''
+  } catch (error: any) {
     apiError.value =
-        error instanceof Error
-            ? error.message
-            : 'An error occurred while sending the request.'
+        error?.response?.data?.message ||
+        error?.message ||
+        'We could not send your request. Please try again.'
   } finally {
     isSubmittingManual.value = false
   }
 }
 
-/**
- * Fetches latest active room request on page load.
- */
-async function fetchRoomRequests(): Promise<void> {
-  try {
-    const response = await fetch(`/api/guest/requests/${props.room}`)
-
-    if (!response.ok) {
-      return
-    }
-
-    const requests = await response.json()
-    const activeRequest = requests.find(
-        (request: any) =>
-            !['DELIVERED', 'REJECTED', 'CANCELLED'].includes(request.status)
-    )
-
-    if (activeRequest) {
-      currentRequest.value = {
-        id: activeRequest.id,
-        roomNumber: activeRequest.roomNumber,
-        displayText: activeRequest.text,
-        status: activeRequest.status,
-        createdAt: activeRequest.createdAt,
-        backendMessage: activeRequest.message,
-      }
-    }
-  } catch (error) {
-    console.error('Failed to fetch room requests:', error)
-  }
-}
-
-/**
- * Clears only temporary feedback messages.
- */
 function clearMessagesOnly(): void {
   microphoneError.value = null
   apiError.value = null
   popupMessage.value = null
 }
 
-/**
- * Clears voice-only state.
- */
 function clearVoiceState(): void {
+  shouldSubmitVoiceOnEnd.value = false
+  clearSilenceTimeout()
   liveTranscript.value = ''
   lockedVoiceText.value = ''
   backendTranscript.value = ''
   recordedAudioBlob.value = null
   recordedAudioChunks.value = []
+  finalVoiceSegments.value = []
+  hasSpokenDuringSession.value = false
   clearMessagesOnly()
 
-  if (recognition.value && isListening.value) {
+  if (recognition.value && (isListening.value || isStartingVoiceCapture.value)) {
     recognition.value.abort()
   }
 
   stopAudioRecordingOnly()
   isListening.value = false
-}
-
-/**
- * Verifies that the guest started with the wake phrase.
- */
-function startsWithWakePhrase(text: string): boolean {
-  return text.trim().toLowerCase().startsWith(wakePhrase)
+  isStartingVoiceCapture.value = false
+  mediaRecorder.value = null
 }
 
 function getStatusLabel(status: string): string {
@@ -629,10 +613,7 @@ function getStatusLabel(status: string): string {
     RECEIVED: 'Received',
     IN_PROGRESS: 'In Progress',
     DELIVERED: 'Delivered',
-    REJECTED: 'Rejected',
-    CANCELLED: 'Cancelled',
-    APPROVED: 'Approved',
-    DECLINED: 'Declined',
+    REJECTED: 'Unavailable',
   }
 
   return labels[status] || status
@@ -644,28 +625,22 @@ function getStatusBadgeClass(status: string): string {
     IN_PROGRESS: 'text-bg-primary',
     DELIVERED: 'text-bg-success',
     REJECTED: 'text-bg-danger',
-    CANCELLED: 'text-bg-warning',
-    APPROVED: 'text-bg-success',
-    DECLINED: 'text-bg-danger',
   }
 
   return classes[status] || 'text-bg-secondary'
 }
 
 const hasError = computed(() => Boolean(microphoneError.value || apiError.value))
-
-const activeErrorMessage = computed(() => {
-  return microphoneError.value || apiError.value || ''
-})
-
-const canStopListening = computed(() => isListening.value)
+const activeErrorMessage = computed(() => microphoneError.value || apiError.value || '')
+const canStopListening = computed(() => isListening.value || isStartingVoiceCapture.value)
 
 const canSubmitManualText = computed(() => {
   return (
       manualText.value.trim().length > 0 &&
       !isSubmittingManual.value &&
       !isListening.value &&
-      !isUploading.value
+      !isUploading.value &&
+      !isStartingVoiceCapture.value
   )
 })
 
@@ -681,16 +656,16 @@ const micIconClass = computed(() => {
   return 'bi bi-mic-mute fs-1'
 })
 
-const popupAlertClass = computed(() => {
+const popupAlertCustomClass = computed(() => {
   switch (popupMessage.value?.type) {
     case 'success':
-      return 'alert-success'
+      return 'status-alert--success'
     case 'danger':
-      return 'alert-danger'
+      return 'status-alert--error'
     case 'warning':
-      return 'alert-warning'
+      return 'status-alert--warning'
     default:
-      return 'alert-info'
+      return 'status-alert--info'
   }
 })
 </script>
