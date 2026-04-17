@@ -12,7 +12,6 @@ def main():
     audio, sr = librosa.load(audio_path, sr=16000)
     segments, info = model.transcribe(audio)
     full_text = "".join(segment.text for segment in segments)
-    print(full_text)
 
 if __name__ == "__main__":
     main()
