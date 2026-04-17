@@ -1,7 +1,7 @@
 <template>
   <div class="staff-dashboard min-vh-100">
     <div class="container-fluid px-0">
-      <div class="row g-0 min-vh-100">
+      <div class="row g-0 min-vh-100 align-items-stretch">
         <Sidebar :items="navigationItems" :current-path="route.path">
           <template #bottom>
             <ThemeToggleButton :theme="theme" @toggle="toggleTheme" />
@@ -9,7 +9,7 @@
         </Sidebar>
 
         <main class="col main-content position-relative">
-          <div class="p-4 p-xl-5">
+          <div class="main-content__inner p-4 p-xl-5">
             <header class="mb-4 mb-xl-5">
               <h1 class="display-5 fw-bold mb-2">Staff Dashboard</h1>
               <p class="text-secondary-emphasis mb-0">
@@ -32,7 +32,7 @@
               </div>
             </section>
 
-            <section class="mb-4 d-flex flex-column gap-3">
+            <section class="mb-4 d-flex flex-column gap-3 dashboard-toolbar">
               <RequestFilters v-model="selectedTab" :tabs="tabs" />
 
               <div
@@ -75,7 +75,7 @@ import ThemeToggleButton from '../components/common/ThemeToggleButton.vue'
 import StatCard from '../components/common/StatCard.vue'
 import RequestFilters from '../components/request/RequestFilters.vue'
 import RequestList from '../components/request/RequestList.vue'
-import {getServiceRequests} from "@/services/service-request-service.ts";
+import { getServiceRequests } from '@/services/service-request-service.ts'
 
 type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
 type RequestTab = 'active' | 'all'
@@ -128,12 +128,6 @@ interface DashboardMessage {
   text: string
 }
 
-/**
- * Backend placeholder contract.
- * Team note:
- * Keep this shape stable when backend teammate connects real API / WS.
- * It is fine to add category, notes, eta later.
- */
 interface BackendRequestDto {
   id: string
   roomNumber: string
@@ -144,11 +138,6 @@ interface BackendRequestDto {
   requestItems?: RequestItemView[]
 }
 
-/**
- * Real-time placeholder contract.
- * Team note:
- * Staff should receive all request-created and request-updated events.
- */
 interface RequestSocketEvent {
   type: 'REQUEST_CREATED' | 'REQUEST_UPDATED'
   payload: BackendRequestDto
@@ -320,18 +309,17 @@ function handleIncomingUpdatedRequest(dto: BackendRequestDto): void {
 }
 
 async function loadRequests(): Promise<void> {
-  /**
-   * Backend placeholder:
-   * Replace with real startup fetch.
-   *
-   * Example:
-   * const { data } = await api.get<BackendRequestDto[]>('/staff/requests')
-   * requests.value = data.map(normalizeRequest)
-   */
-  getServiceRequests()
+  dashboardMessage.value = null
+
+  await getServiceRequests()
       .then((data) => {
-        requests.value = [...data]
-        console.log('Loaded requests:', [...data])
+        requests.value = data.map(normalizeRequest)
+      })
+      .catch(() => {
+        dashboardMessage.value = {
+          type: 'error',
+          text: 'Failed to load service requests. Please refresh and try again.',
+        }
       })
 }
 
@@ -353,21 +341,7 @@ function connectRealtimeChannel(): void {
    *   }
    * }
    */
-
-  // Demo helper. Remove when backend socket is ready.
-  // setTimeout(() => {
-  //   void handleIncomingCreatedRequest({
-  //     id: crypto.randomUUID(),
-  //     roomNumber: '204',
-  //     text: 'Send up an iron and two towels',
-  //     status: 'RECEIVED',
-  //     createdAt: new Date().toISOString(),
-  //     requestItems: [
-  //       { itemName: 'Iron', quantity: 1 },
-  //       { itemName: 'Towel', quantity: 2 },
-  //     ],
-  //   })
-  // }, 1200)
+  void ({} as RequestSocketEvent)
 }
 
 function disconnectRealtimeChannel(): void {
@@ -385,15 +359,6 @@ function setStatus(id: string, status: RequestStatus): void {
   const previousStatus = request.status
   request.status = status
 
-  /**
-   * Backend placeholder:
-   * Replace optimistic local update with real PATCH call.
-   * If call fails, restore previousStatus.
-   *
-   * Example endpoint:
-   * PATCH /api/staff/requests/{id}
-   * body: { status }
-   */
   void previousStatus
 }
 
@@ -441,6 +406,18 @@ watch(
   min-width: 0;
 }
 
+.main-content__inner {
+  min-height: 100vh;
+}
+
+.dashboard-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding-top: 0.25rem;
+  background: linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg) 88%, transparent 100%);
+}
+
 .icon-blue {
   color: var(--primary);
 }
@@ -481,5 +458,17 @@ watch(
 .toast-slide-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+@media (max-width: 991.98px) {
+  .main-content__inner {
+    min-height: auto;
+  }
+
+  .dashboard-toolbar {
+    position: static;
+    background: transparent;
+    padding-top: 0;
+  }
 }
 </style>

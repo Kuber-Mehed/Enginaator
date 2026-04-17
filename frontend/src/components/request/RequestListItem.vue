@@ -1,10 +1,10 @@
 <template>
-  <article class="card border rounded-4 request-item-card">
+  <article class="card border rounded-4 request-item-card h-100">
     <div class="card-body p-4">
-      <div class="d-flex flex-column flex-xl-row justify-content-between gap-4">
-        <div class="request-main">
+      <div class="request-layout d-flex flex-column flex-xl-row justify-content-between gap-4">
+        <div class="request-main min-w-0">
           <div class="fw-bold fs-5 mb-1">Room {{ request.roomNumber }}</div>
-          <p class="mb-2">{{ request.text }}</p>
+          <p class="mb-2 request-text">{{ request.text }}</p>
 
           <div
               v-if="request.requestItems.length > 0"
@@ -28,7 +28,7 @@
           </div>
         </div>
 
-        <div class="d-flex flex-wrap gap-2 align-items-start">
+        <div class="request-actions d-grid gap-2 align-items-start">
           <button
               type="button"
               class="btn btn-sm btn-outline-primary"
@@ -146,8 +146,23 @@ const statusBadgeClass = computed(() => {
   border-color: var(--border-color) !important;
 }
 
+.request-text {
+  overflow-wrap: anywhere;
+}
+
 .request-chip {
   background: rgba(148, 163, 184, 0.14);
   color: var(--text-main);
+}
+
+.request-actions {
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  min-width: min(100%, 260px);
+}
+
+@media (max-width: 575.98px) {
+  .request-actions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

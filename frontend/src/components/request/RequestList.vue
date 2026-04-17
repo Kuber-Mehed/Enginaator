@@ -1,6 +1,6 @@
 <template>
   <section class="card dashboard-card border-0 shadow-sm rounded-4 requests-panel">
-    <div class="card-body p-4">
+    <div class="card-body p-4 p-xl-4">
       <RequestListEmpty v-if="requests.length === 0" />
 
       <div v-else class="d-flex flex-column gap-3">
@@ -57,5 +57,6 @@ function handleSetStatus(id: string, status: RequestStatus) {
 
 .requests-panel {
   min-height: 320px;
+  overflow: hidden;
 }
 </style>
