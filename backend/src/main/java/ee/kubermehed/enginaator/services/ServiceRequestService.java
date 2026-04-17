@@ -55,8 +55,6 @@ public class ServiceRequestService {
         serviceRequest.setStatus(RequestStatus.RECEIVED);
         serviceRequest.setCreatedAt(LocalDateTime.now());
 
-        List<RequestItem> requestItems = new ArrayList<>();
-
         for (ParsedItemDTO parsedItem : parsedItems) {
 
             InventoryItem inventoryItem = inventoryItems.get(parsedItem.getItemName());
@@ -65,7 +63,8 @@ public class ServiceRequestService {
                 throw new RuntimeException("Item not found: " + parsedItem.getItemName());
             }
 
-            int available = inventoryItem.getQuantityInStock() - inventoryItem.getQuantityReserved();
+            int available = inventoryItem.getQuantityInStock()
+                    - inventoryItem.getQuantityReserved();
 
             if (available < parsedItem.getQuantity()) {
                 throw new RuntimeException("Not enough stock: " + parsedItem.getItemName());
@@ -79,11 +78,8 @@ public class ServiceRequestService {
             requestItem.setItem(inventoryItem);
             requestItem.setQuantity(parsedItem.getQuantity());
 
-            // ONLY THIS matters
             serviceRequest.addRequestItem(requestItem);
         }
-
-        serviceRequest.setRequestItems(requestItems);
 
         serviceRequestRepository.save(serviceRequest);
         inventoryItemRepository.saveAll(inventoryItems.values());

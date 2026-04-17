@@ -19,11 +19,12 @@ public class RequestItem {
     private UUID id;
 
     @ManyToOne
+    @JoinColumn(name = "inventory_item_id", nullable = false)
     private InventoryItem item;
 
     private int quantity;
 
     @ManyToOne
-    @JoinColumn(name = "service_request_id")
+    @JoinColumn(name = "service_request_id", nullable = false)
     private ServiceRequest serviceRequest;
 }

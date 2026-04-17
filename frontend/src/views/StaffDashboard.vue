@@ -75,6 +75,7 @@ import ThemeToggleButton from '../components/common/ThemeToggleButton.vue'
 import StatCard from '../components/common/StatCard.vue'
 import RequestFilters from '../components/request/RequestFilters.vue'
 import RequestList from '../components/request/RequestList.vue'
+import {getServiceRequests} from "@/services/service-request-service.ts";
 
 type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
 type RequestTab = 'active' | 'all'
@@ -86,7 +87,7 @@ interface RequestItemView {
   quantity: number
 }
 
-interface StaffRequest {
+export interface StaffRequest {
   id: string
   roomNumber: string
   text: string
@@ -327,7 +328,11 @@ async function loadRequests(): Promise<void> {
    * const { data } = await api.get<BackendRequestDto[]>('/staff/requests')
    * requests.value = data.map(normalizeRequest)
    */
-  requests.value = []
+  getServiceRequests()
+      .then((data) => {
+        requests.value = [...data]
+        console.log('Loaded requests:', [...data])
+      })
 }
 
 function connectRealtimeChannel(): void {
