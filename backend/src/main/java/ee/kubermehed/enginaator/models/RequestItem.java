@@ -22,4 +22,8 @@ public class RequestItem {
     private InventoryItem item;
 
     private int quantity;
+
+    @ManyToOne
+    @JoinColumn(name = "service_request_id")
+    private ServiceRequest serviceRequest;
 }

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +27,16 @@ public class ServiceRequest {
 
     private LocalDateTime createdAt;
 
-    @OneToMany
+    @OneToMany(mappedBy = "serviceRequest",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true)
     private List<RequestItem> requestItems;
+
+    public void addRequestItem(RequestItem item) {
+        if (requestItems == null) {
+            requestItems = new ArrayList<>();
+        }
+        requestItems.add(item);
+        item.setServiceRequest(this);
+    }
 }

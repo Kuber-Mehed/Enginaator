@@ -31,7 +31,6 @@ public class ServiceRequestController {
     @PostMapping("/room/{roomNumber}")
     public ResponseEntity<Void> createServiceRequest(@RequestParam("file") MultipartFile file,
                                                      @PathVariable String roomNumber) {
-        System.out.println("got smth");
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
@@ -41,10 +40,9 @@ public class ServiceRequestController {
     }
 
     @PostMapping("/room/{roomNumber}/text")
-    public ResponseEntity<?> postTextRequest(
+    public ResponseEntity<Void> postTextRequest(
             @PathVariable String roomNumber,
-            @RequestBody TextRequestDto body
-    ) {
+            @RequestBody TextRequestDto body) {
         String requestText = body.getRequestText();
 
         // TODO:

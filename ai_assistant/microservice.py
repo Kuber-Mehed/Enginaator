@@ -45,19 +45,18 @@ def process_text(text: str):
                 "1. Extract facility items and their quantities from the user text.\n"
                 "2. Translate all item names to English.\n"
                 "3. Output the result ONLY as a valid JSON array of objects.\n\n"
-                "JSON SCHEMA:\n"
                 "[\n"
-                "  {\"item_name\": \"string\", \"amount\": integer}\n"
+                "  {\"itemName\": \"string\", \"quantity\": integer}\n"
                 "]\n\n"
                 "CONSTRAINTS:\n"
-                "- Return ONLY the JSON array. No conversational filler, no markdown blocks (like ```json), and no explanations.\n"
-                "- If an amount is not specified, use by default number 1.\n"
+                "- Output must be valid JSON parsable by Python json.loads(). No conversational filler, no markdown blocks (like ```json), and no explanations.\n"
+                "- If an quantity is not specified, use by default number 1.\n"
                 "- If no items are found, return [].\n"
                 "- Ensure the output is a single, valid JSON string."
             )
         },
         {
-            "role": "user", 
+            "role": "user",
             "content": f"Extract from this request: {text}"
         }
     ]
@@ -89,7 +88,6 @@ async def extract(request: TranscriptionRequest):
 
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
-    # Можно убрать проверку расширения, если Spring может прислать любой тип
     temp_audio_path = f"temp_{file.filename}"
     with open(temp_audio_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
