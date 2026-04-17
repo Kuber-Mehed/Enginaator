@@ -3,6 +3,7 @@ import GuestView from '../views/GuestView.vue'
 import StaffDashboard from '../views/StaffDashboard.vue'
 import InventoryView from '../views/InventoryView.vue'
 import ReportsView from '../views/ReportsView.vue'
+import StocktakingView from '../views/StocktakingView.vue'
 
 const router = createRouter({
     history: createWebHistory(),
@@ -31,6 +32,11 @@ const router = createRouter({
             path: '/staff/reports',
             name: 'reports',
             component: ReportsView,
+        },
+        {
+            path: '/staff/stocktaking',
+            name: 'stocktaking',
+            component: StocktakingView,
         },
     ],
 })
