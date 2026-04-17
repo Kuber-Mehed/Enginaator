@@ -83,17 +83,14 @@ async def extract(request: TranscriptionRequest):
 
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
-    if not file.filename.endswith('.mp3'):
-        raise HTTPException(status_code=400, detail="Only .mp3 files are supported.")
-
+    # Можно убрать проверку расширения, если Spring может прислать любой тип
     temp_audio_path = f"temp_{file.filename}"
     with open(temp_audio_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
         model = WhisperModel("base", device="cpu", compute_type="int8")
-        audio, sr = librosa.load(temp_audio_path, sr=16000)
-        segments, info = model.transcribe(audio)
+        segments, info = model.transcribe(temp_audio_path)
         transcript = "".join(segment.text for segment in segments)
     except Exception as e:
         os.remove(temp_audio_path)
@@ -106,6 +103,6 @@ async def process_audio(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"text_processing error: {str(e)}")
 
-    result_json =  processed_text
+    result_json = processed_text
     print(result_json)
     return JSONResponse(content=result_json)
