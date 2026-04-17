@@ -40,20 +40,26 @@ def process_text(text: str):
         {
             "role": "system",
             "content": (
-                "You are a hotel inventory assistant.\n"
-                "Extract facility items and their quantities.\n"
-                "Translate everything to English.\n"
-                "Return ONLY valid JSON in this exact format:\n"
-                '{"Item_name": Value}\n'
-                '{"Amount": Number}\n'
-                "Rules:\n"
-                "- No explanations\n"
-                "- No extra text\n"
-                "- No comments\n"
-                "- If nothing found, return {}\n"
+                "You are a professional hotel inventory assistant.\n\n"
+                "TASK:\n"
+                "1. Extract facility items and their quantities from the user text.\n"
+                "2. Translate all item names to English.\n"
+                "3. Output the result ONLY as a valid JSON array of objects.\n\n"
+                "JSON SCHEMA:\n"
+                "[\n"
+                "  {\"item_name\": \"string\", \"amount\": integer}\n"
+                "]\n\n"
+                "CONSTRAINTS:\n"
+                "- Return ONLY the JSON array. No conversational filler, no markdown blocks (like ```json), and no explanations.\n"
+                "- If an amount is not specified, use by default number 1.\n"
+                "- If no items are found, return [].\n"
+                "- Ensure the output is a single, valid JSON string."
             )
         },
-        {"role": "user", "content": f"Extract from this request: {text}"}
+        {
+            "role": "user", 
+            "content": f"Extract from this request: {text}"
+        }
     ]
     prompt = tokenizer.apply_chat_template(
         messages,
@@ -83,17 +89,14 @@ async def extract(request: TranscriptionRequest):
 
 @app.post("/process-audio/")
 async def process_audio(file: UploadFile = File(...)):
-    if not file.filename.endswith('.mp3'):
-        raise HTTPException(status_code=400, detail="Only .mp3 files are supported.")
-
+    # Можно убрать проверку расширения, если Spring может прислать любой тип
     temp_audio_path = f"temp_{file.filename}"
     with open(temp_audio_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
         model = WhisperModel("base", device="cpu", compute_type="int8")
-        audio, sr = librosa.load(temp_audio_path, sr=16000)
-        segments, info = model.transcribe(audio)
+        segments, info = model.transcribe(temp_audio_path)
         transcript = "".join(segment.text for segment in segments)
     except Exception as e:
         os.remove(temp_audio_path)
@@ -106,6 +109,6 @@ async def process_audio(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"text_processing error: {str(e)}")
 
-    result_json =  processed_text
+    result_json = processed_text
     print(result_json)
     return JSONResponse(content=result_json)
