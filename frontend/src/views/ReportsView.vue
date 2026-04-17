@@ -161,7 +161,7 @@ onMounted(() => {
             <!-- Month Selector -->
             <div class="table-card rounded-4 p-4 mb-4 d-flex align-items-center justify-content-between">
               <div class="d-flex align-items-center gap-3">
-                <i class="bi bi-calendar3 text-secondary fs-5"></i>
+                <i class="bi bi-calendar3 calendar-icon fs-5"></i>
                 <span class="fw-semibold">Select Month:</span>
               </div>
               <input
@@ -327,7 +327,6 @@ onMounted(() => {
   outline: none;
   min-width: 160px;
   transition: border-color 0.15s ease;
-  color-scheme: dark;
 }
 
 .month-input:focus {
@@ -371,6 +370,23 @@ onMounted(() => {
 
 .item-row:last-child {
   border-bottom: none;
+}
+
+/* ── Calendar icon ────────────────────────────── */
+.calendar-icon {
+  color: var(--text-main) !important;
+  transition: color 0.2s ease;
+}
+
+/* ── Bootstrap table theme override ──────────── */
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text-main);
+  --bs-table-border-color: transparent;
+  --bs-table-striped-bg: transparent;
+  --bs-table-hover-bg: transparent;
+  --bs-table-active-bg: transparent;
+  color: var(--text-main);
 }
 
 /* ── Empty state ──────────────────────────────── */
