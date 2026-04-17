@@ -40,20 +40,26 @@ def process_text(text: str):
         {
             "role": "system",
             "content": (
-                "You are a hotel inventory assistant.\n"
-                "Extract facility items and their quantities.\n"
-                "Translate everything to English.\n"
-                "Return ONLY valid JSON in this exact format:\n"
-                '{"Item_name": Value}\n'
-                '{"Amount": Number}\n'
-                "Rules:\n"
-                "- No explanations\n"
-                "- No extra text\n"
-                "- No comments\n"
-                "- If nothing found, return {}\n"
+                "You are a professional hotel inventory assistant.\n\n"
+                "TASK:\n"
+                "1. Extract facility items and their quantities from the user text.\n"
+                "2. Translate all item names to English.\n"
+                "3. Output the result ONLY as a valid JSON array of objects.\n\n"
+                "JSON SCHEMA:\n"
+                "[\n"
+                "  {\"item_name\": \"string\", \"amount\": integer}\n"
+                "]\n\n"
+                "CONSTRAINTS:\n"
+                "- Return ONLY the JSON array. No conversational filler, no markdown blocks (like ```json), and no explanations.\n"
+                "- If an amount is not specified, use by default number 1.\n"
+                "- If no items are found, return [].\n"
+                "- Ensure the output is a single, valid JSON string."
             )
         },
-        {"role": "user", "content": f"Extract from this request: {text}"}
+        {
+            "role": "user", 
+            "content": f"Extract from this request: {text}"
+        }
     ]
     prompt = tokenizer.apply_chat_template(
         messages,
