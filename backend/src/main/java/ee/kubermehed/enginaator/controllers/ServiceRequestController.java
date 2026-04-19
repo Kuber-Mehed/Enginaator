@@ -2,6 +2,7 @@ package ee.kubermehed.enginaator.controllers;
 
 import ee.kubermehed.enginaator.dtos.RequestViewDto;
 import ee.kubermehed.enginaator.dtos.TextRequestDto;
+import ee.kubermehed.enginaator.dtos.UpdateRequestStatusDto;
 import ee.kubermehed.enginaator.services.ServiceRequestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -47,8 +48,17 @@ public class ServiceRequestController {
 
     @PostMapping("/service-request/{requestId}")
     public ResponseEntity<Void> updateServiceRequest(@PathVariable UUID requestId, @RequestBody boolean isApproved) {
+        // TODO remove this
         serviceRequestService.updateServiceRequest(requestId, isApproved);
         return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/service-request/{requestId}/status")
+    public ResponseEntity<RequestViewDto> updateServiceRequestStatus(
+            @PathVariable UUID requestId,
+            @RequestBody UpdateRequestStatusDto body) {
+        RequestViewDto updated = serviceRequestService.updateServiceRequestStatus(requestId, body.getStatus());
+        return ResponseEntity.ok(updated);
     }
 
     @RestController

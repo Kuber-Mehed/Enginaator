@@ -1,12 +1,22 @@
 <template>
-  <article class="card border rounded-4 request-item-card h-100">
+  <article
+      class="card border rounded-4 request-item-card h-100 request-item-card--interactive"
+      role="button"
+      tabindex="0"
+      @click="emitOpen"
+      @keydown.enter.prevent="emitOpen"
+      @keydown.space.prevent="emitOpen"
+  >
     <div class="card-body p-4">
-      <div class="request-layout d-flex flex-column flex-xl-row justify-content-between gap-4">
+      <div class="request-layout d-flex flex-column gap-3">
         <div class="request-main min-w-0">
           <div class="fw-bold fs-5 mb-1 room-title">
             Room {{ request.roomNumber }}
           </div>
-          <p class="mb-2 request-text">{{ request.text }}</p>
+
+          <p class="mb-2 request-text">
+            {{ request.text }}
+          </p>
 
           <div
               v-if="request.requestItems.length > 0"
@@ -17,54 +27,28 @@
                 :key="`${request.id}-${item.itemName}`"
                 class="badge rounded-pill request-chip"
             >
-              {{ item.quantity }} × {{ item.itemName }}
+              {{ item.quantityRequested }} × {{ item.itemName }}
             </span>
           </div>
 
+          <p
+              v-if="request.staffComment?.trim()"
+              class="small mb-2 request-comment"
+          >
+            Staff note: {{ request.staffComment }}
+          </p>
+
           <div class="small text-secondary-emphasis d-flex flex-wrap align-items-center gap-2">
-            <span class="badge rounded-pill text-capitalize" :class="statusBadgeClass">
+            <span class="badge rounded-pill" :class="statusBadgeClass">
               {{ formattedStatus }}
             </span>
             <span>•</span>
-            <div class="time">
-
-              <span>{{ timeAgoLabel }}</span>
-            </div>
+            <span class="time">{{ timeAgoLabel }}</span>
           </div>
         </div>
 
-        <div class="request-actions d-grid gap-2 align-items-start">
-          <button
-              type="button"
-              class="btn btn-sm btn-outline-primary"
-              @click="$emit('set-status', request.id, 'received')"
-          >
-            Received
-          </button>
-
-          <button
-              type="button"
-              class="btn btn-sm btn-outline-warning"
-              @click="$emit('set-status', request.id, 'in_progress')"
-          >
-            In Progress
-          </button>
-
-          <button
-              type="button"
-              class="btn btn-sm btn-outline-success"
-              @click="$emit('set-status', request.id, 'delivered')"
-          >
-            Delivered
-          </button>
-
-          <button
-              type="button"
-              class="btn btn-sm btn-outline-danger"
-              @click="$emit('set-status', request.id, 'rejected')"
-          >
-            Reject
-          </button>
+        <div class="small text-secondary-emphasis">
+          Click to manage request
         </div>
       </div>
     </div>
@@ -74,11 +58,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
+type RequestStatus =
+    | 'RECEIVED'
+    | 'IN_PROGRESS'
+    | 'DELIVERED'
+    | 'REJECTED'
+    | 'CANCELLED'
 
 interface RequestItemView {
   itemName: string
-  quantity: number
+  quantityRequested: number
+  quantityFulfilled: number
 }
 
 interface StaffRequest {
@@ -88,6 +78,7 @@ interface StaffRequest {
   status: RequestStatus
   createdAt: string
   updatedAt?: string
+  staffComment?: string
   requestItems: RequestItemView[]
 }
 
@@ -95,11 +86,29 @@ const props = defineProps<{
   request: StaffRequest
 }>()
 
-defineEmits<{
-  (e: 'set-status', id: string, status: RequestStatus): void
+const emit = defineEmits<{
+  (e: 'open-request', request: StaffRequest): void
 }>()
 
-const formattedStatus = computed(() => props.request.status.replace('_', ' '))
+function emitOpen() {
+  emit('open-request', props.request)
+}
+
+const formattedStatus = computed(() => {
+  switch (props.request.status) {
+    case 'IN_PROGRESS':
+      return 'In Progress'
+    case 'DELIVERED':
+      return 'Delivered'
+    case 'REJECTED':
+      return 'Rejected'
+    case 'CANCELLED':
+      return 'Cancelled'
+    case 'RECEIVED':
+    default:
+      return 'Received'
+  }
+})
 
 const timeAgoLabel = computed(() => {
   const created = new Date(props.request.createdAt).getTime()
@@ -131,14 +140,16 @@ const timeAgoLabel = computed(() => {
 
 const statusBadgeClass = computed(() => {
   switch (props.request.status) {
-    case 'received':
+    case 'RECEIVED':
       return 'text-bg-primary'
-    case 'in_progress':
+    case 'IN_PROGRESS':
       return 'text-bg-warning'
-    case 'delivered':
+    case 'DELIVERED':
       return 'text-bg-success'
-    case 'rejected':
+    case 'REJECTED':
       return 'text-bg-danger'
+    case 'CANCELLED':
+      return 'text-bg-secondary'
     default:
       return 'text-bg-secondary'
   }
@@ -151,6 +162,21 @@ const statusBadgeClass = computed(() => {
   border-color: var(--border-color) !important;
 }
 
+.request-item-card--interactive {
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.request-item-card--interactive:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary) !important;
+}
+
+.request-item-card--interactive:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .request-text {
   overflow-wrap: anywhere;
 }
@@ -160,18 +186,13 @@ const statusBadgeClass = computed(() => {
   color: var(--text-main);
 }
 
-.request-actions {
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  min-width: min(100%, 260px);
+.request-comment {
+  color: var(--text-muted);
 }
 
-.room-title, .request-text, .time {
+.room-title,
+.request-text,
+.time {
   color: var(--text-main);
-}
-
-@media (max-width: 575.98px) {
-  .request-actions {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

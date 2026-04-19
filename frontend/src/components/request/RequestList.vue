@@ -1,6 +1,7 @@
 <template>
   <section class="card dashboard-card border-0 shadow-sm rounded-4 requests-panel">
     <div class="card-body p-4 p-xl-4">
+
       <RequestListEmpty v-if="requests.length === 0" />
 
       <div v-else class="d-flex flex-column gap-3">
@@ -8,9 +9,10 @@
             v-for="request in requests"
             :key="request.id"
             :request="request"
-            @set-status="handleSetStatus"
+            @click="handleOpenRequest(request)"
         />
       </div>
+
     </div>
   </section>
 </template>
@@ -19,20 +21,27 @@
 import RequestListEmpty from './RequestListEmpty.vue'
 import RequestListItem from './RequestListItem.vue'
 
-type RequestStatus = 'received' | 'in_progress' | 'delivered' | 'rejected'
+type RequestStatus =
+    | 'RECEIVED'
+    | 'IN_PROGRESS'
+    | 'DELIVERED'
+    | 'REJECTED'
+    | 'CANCELLED'
 
 interface RequestItemView {
   itemName: string
-  quantity: number
+  quantityRequested: number
+  quantityFulfilled: number
 }
 
-interface StaffRequest {
+export interface StaffRequest {
   id: string
   roomNumber: string
   text: string
   status: RequestStatus
   createdAt: string
   updatedAt?: string
+  staffComment?: string
   requestItems: RequestItemView[]
 }
 
@@ -41,11 +50,11 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'set-status', id: string, status: RequestStatus): void
+  (e: 'open-request', request: StaffRequest): void
 }>()
 
-function handleSetStatus(id: string, status: RequestStatus) {
-  emit('set-status', id, status)
+function handleOpenRequest(request: StaffRequest) {
+  emit('open-request', request)
 }
 </script>
 

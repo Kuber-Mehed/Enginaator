@@ -164,4 +164,86 @@ public class ServiceRequestService {
 
         return dto;
     }
+
+    @Transactional
+    public RequestViewDto updateServiceRequestStatus(UUID requestId, RequestStatus newStatus) {
+        GuestRequest guestRequest = serviceRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Service request not found"));
+
+        RequestStatus currentStatus = guestRequest.getStatus();
+
+        validateTransition(currentStatus, newStatus);
+
+        if (newStatus == RequestStatus.DELIVERED) {
+            fulfillRequest(guestRequest);
+        } else if (newStatus == RequestStatus.REJECTED || newStatus == RequestStatus.CANCELLED) {
+            releaseReservation(guestRequest);
+        }
+
+        guestRequest.setStatus(newStatus);
+        GuestRequest saved = serviceRequestRepository.save(guestRequest);
+
+        RequestViewDto dto = RequestViewDto.fromEntity(saved);
+        notificationService.sendToStaff(dto);
+        notificationService.sendToRoom(saved.getRoomNumber(), dto);
+        saved.getRequestItems().forEach(item ->
+                notificationService.sendToInventory(InventoryViewDto.fromEntity(item.getInventoryItem())));
+
+        return dto;
+    }
+
+    private void releaseReservation(GuestRequest guestRequest) {
+        guestRequest.getRequestItems().forEach(requestItem -> {
+            InventoryItem inventoryItem = requestItem.getInventoryItem();
+
+            int reservedToRelease = requestItem.getQuantityRequested() - requestItem.getQuantityFulfilled();
+            int newReserved = inventoryItem.getQuantityReserved() - reservedToRelease;
+
+            if (newReserved < 0) {
+                throw new RuntimeException("Reserved quantity cannot go below zero for item: " + inventoryItem.getName());
+            }
+
+            inventoryItem.setQuantityReserved(newReserved);
+        });
+    }
+
+    private void fulfillRequest(GuestRequest guestRequest) {
+        guestRequest.getRequestItems().forEach(requestItem -> {
+            InventoryItem inventoryItem = requestItem.getInventoryItem();
+
+            int quantityToFulfill = requestItem.getQuantityRequested() - requestItem.getQuantityFulfilled();
+
+            int newReserved = inventoryItem.getQuantityReserved() - quantityToFulfill;
+            int newInStock = inventoryItem.getQuantityInStock() - quantityToFulfill;
+
+            if (newReserved < 0) {
+                throw new RuntimeException("Reserved quantity cannot go below zero for item: " + inventoryItem.getName());
+            }
+
+            if (newInStock < 0) {
+                throw new RuntimeException("Stock cannot go below zero for item: " + inventoryItem.getName());
+            }
+
+            inventoryItem.setQuantityReserved(newReserved);
+            inventoryItem.setQuantityInStock(newInStock);
+            requestItem.setQuantityFulfilled(requestItem.getQuantityFulfilled() + quantityToFulfill);
+        });
+    }
+
+    private void validateTransition(RequestStatus current, RequestStatus next) {
+        boolean valid =
+                (current == RequestStatus.RECEIVED && (
+                        next == RequestStatus.IN_PROGRESS ||
+                                next == RequestStatus.REJECTED ||
+                                next == RequestStatus.CANCELLED
+                )) ||
+                        (current == RequestStatus.IN_PROGRESS && (
+                                next == RequestStatus.DELIVERED ||
+                                        next == RequestStatus.CANCELLED
+                        ));
+
+        if (!valid) {
+            throw new RuntimeException("Invalid status transition: " + current + " -> " + next);
+        }
+    }
 }
