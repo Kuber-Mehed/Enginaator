@@ -18,13 +18,17 @@ public class RequestItem {
     @Column(updatable = false, nullable = false)
     private UUID id;
 
-    @ManyToOne
+    @ManyToOne(optional = false)
     @JoinColumn(name = "inventory_item_id", nullable = false)
-    private InventoryItem item;
+    private InventoryItem inventoryItem;
 
-    private int quantity;
+    @Column(name = "quantity_requested", nullable = false)
+    private int quantityRequested;
 
-    @ManyToOne
+    @Column(name = "quantity_fulfilled", nullable = false)
+    private int quantityFulfilled = 0;
+
+    @ManyToOne(optional = false)
     @JoinColumn(name = "service_request_id", nullable = false)
-    private ServiceRequest serviceRequest;
+    private GuestRequest guestRequest;
 }

@@ -51,10 +51,11 @@ CREATE TABLE service_request
     id            UUID PRIMARY KEY,
 
     room_number   VARCHAR(20)    NOT NULL,
-
+    request_text  TEXT,
     status        request_status NOT NULL DEFAULT 'RECEIVED',
 
-    created_at    TIMESTAMP      NOT NULL DEFAULT NOW()
+    created_at    TIMESTAMP      NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP      NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_service_request_room ON service_request (room_number);
@@ -68,11 +69,14 @@ CREATE INDEX idx_service_request_created_at ON service_request (created_at DESC)
 CREATE TABLE request_item
 (
     id                 UUID PRIMARY KEY,
-
     service_request_id UUID    NOT NULL,
     inventory_item_id  UUID    NOT NULL,
 
-    quantity           INTEGER NOT NULL CHECK (quantity > 0),
+    quantity_requested INTEGER NOT NULL CHECK (quantity_requested > 0),
+    quantity_fulfilled INTEGER NOT NULL DEFAULT 0 CHECK (quantity_fulfilled >= 0),
+
+    CONSTRAINT chk_request_item_fulfilled_not_more_than_requested
+        CHECK (quantity_fulfilled <= quantity_requested),
 
     CONSTRAINT fk_service_request_item_request
         FOREIGN KEY (service_request_id)
@@ -86,6 +90,7 @@ CREATE TABLE request_item
 );
 
 CREATE INDEX idx_request_item_request ON request_item (service_request_id);
+CREATE INDEX idx_request_item_inventory ON request_item (inventory_item_id);
 
 -- =========================
 -- TRANSACTION LOG
@@ -154,3 +159,4 @@ CREATE TABLE reconciliation_item
 );
 
 CREATE INDEX idx_recon_item_recon ON reconciliation_item (reconciliation_id);
+CREATE INDEX idx_recon_item_inventory ON reconciliation_item (inventory_item_id);

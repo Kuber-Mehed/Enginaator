@@ -2,7 +2,6 @@ package ee.kubermehed.enginaator.services;
 
 import ee.kubermehed.enginaator.dtos.InventoryViewDTO;
 import ee.kubermehed.enginaator.dtos.RequestViewDTO;
-import ee.kubermehed.enginaator.models.ServiceRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;

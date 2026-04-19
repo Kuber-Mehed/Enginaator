@@ -8,6 +8,9 @@ import lombok.Setter;
 
 import java.util.UUID;
 
+/**
+ * Inventory item, that client sends.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

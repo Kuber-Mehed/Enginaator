@@ -12,31 +12,52 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Getter @Setter @NoArgsConstructor
-public class ServiceRequest {
+@Getter
+@Setter
+@NoArgsConstructor
+@Table(name = "service_request")
+public class GuestRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(updatable = false, nullable = false)
     private UUID id;
 
+    @Column(nullable = false)
     private String roomNumber;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String requestText;
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private RequestStatus status;
 
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "serviceRequest",
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "guestRequest",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
-    private List<RequestItem> requestItems;
+    private List<RequestItem> requestItems = new ArrayList<>();
 
     public void addRequestItem(RequestItem item) {
-        if (requestItems == null) {
-            requestItems = new ArrayList<>();
-        }
         requestItems.add(item);
-        item.setServiceRequest(this);
+        item.setGuestRequest(this);
+    }
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

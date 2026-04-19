@@ -23,34 +23,26 @@ public class ServiceRequestController {
         return ResponseEntity.ok(serviceRequestService.getServiceRequests());
     }
 
-    //    @GetMapping("/{roomNumber}")
-//    public List<RequestDTO> getRoomRequests(@PathVariable String roomNumber) {
-//        return requestService.getRequestsForRoom(roomNumber);
-//    }
-
     @PostMapping("/room/{roomNumber}")
-    public ResponseEntity<Void> createServiceRequest(@RequestParam("file") MultipartFile file,
+    public ResponseEntity<RequestViewDTO> createServiceRequest(@RequestParam("file") MultipartFile file,
                                                      @PathVariable String roomNumber) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        serviceRequestService.createServiceRequest(roomNumber, file);
-        return ResponseEntity.ok().build();
+        RequestViewDTO created = serviceRequestService.createServiceRequest(roomNumber, file);
+        return ResponseEntity.ok(created);
     }
 
     @PostMapping("/room/{roomNumber}/text")
-    public ResponseEntity<Void> postTextRequest(
+    public ResponseEntity<RequestViewDTO> postTextRequest(
             @PathVariable String roomNumber,
             @RequestBody TextRequestDto body) {
-        String requestText = body.getRequestText();
 
-        // TODO:
-        // Call serviceRequestService.createTextServiceRequest(roomNumber, requestText)
-        // after text request flow is implemented.
-        // For now this endpoint exists only to preserve frontend contract.
-
-        return ResponseEntity.ok().build();
+        RequestViewDTO created = serviceRequestService.createServiceRequestText(
+                roomNumber, body.getRequestText()
+        );
+        return ResponseEntity.ok(created);
     }
 
     @PostMapping("/service-request/{requestId}")
