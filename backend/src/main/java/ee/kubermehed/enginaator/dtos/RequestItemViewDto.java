@@ -11,13 +11,13 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class RequestItemViewDTO {
+public class RequestItemViewDto {
     private String itemName;
     private int quantityRequested;
     private int quantityFulfilled;
 
-    public static RequestItemViewDTO fromEntity(RequestItem requestItem) {
-        RequestItemViewDTO dto = new RequestItemViewDTO();
+    public static RequestItemViewDto fromEntity(RequestItem requestItem) {
+        RequestItemViewDto dto = new RequestItemViewDto();
         dto.setItemName(requestItem.getInventoryItem().getName());
         dto.setQuantityRequested(requestItem.getQuantityRequested());
         dto.setQuantityFulfilled(requestItem.getQuantityFulfilled());

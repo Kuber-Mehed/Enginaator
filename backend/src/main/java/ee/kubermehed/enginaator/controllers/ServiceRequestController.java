@@ -1,6 +1,6 @@
 package ee.kubermehed.enginaator.controllers;
 
-import ee.kubermehed.enginaator.dtos.RequestViewDTO;
+import ee.kubermehed.enginaator.dtos.RequestViewDto;
 import ee.kubermehed.enginaator.dtos.TextRequestDto;
 import ee.kubermehed.enginaator.services.ServiceRequestService;
 import lombok.RequiredArgsConstructor;
@@ -19,27 +19,27 @@ public class ServiceRequestController {
     private final ServiceRequestService serviceRequestService;
 
     @GetMapping()
-    public ResponseEntity<List<RequestViewDTO>> getServiceRequests() {
+    public ResponseEntity<List<RequestViewDto>> getServiceRequests() {
         return ResponseEntity.ok(serviceRequestService.getServiceRequests());
     }
 
     @PostMapping("/room/{roomNumber}")
-    public ResponseEntity<RequestViewDTO> createServiceRequest(@RequestParam("file") MultipartFile file,
-                                                     @PathVariable String roomNumber) {
+    public ResponseEntity<RequestViewDto> createServiceRequest(@RequestParam("file") MultipartFile file,
+                                                               @PathVariable String roomNumber) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        RequestViewDTO created = serviceRequestService.createServiceRequest(roomNumber, file);
+        RequestViewDto created = serviceRequestService.createServiceRequest(roomNumber, file);
         return ResponseEntity.ok(created);
     }
 
     @PostMapping("/room/{roomNumber}/text")
-    public ResponseEntity<RequestViewDTO> postTextRequest(
+    public ResponseEntity<RequestViewDto> postTextRequest(
             @PathVariable String roomNumber,
             @RequestBody TextRequestDto body) {
 
-        RequestViewDTO created = serviceRequestService.createServiceRequestText(
+        RequestViewDto created = serviceRequestService.createServiceRequestText(
                 roomNumber, body.getRequestText()
         );
         return ResponseEntity.ok(created);

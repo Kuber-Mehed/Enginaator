@@ -1,8 +1,8 @@
 package ee.kubermehed.enginaator.services;
 
-import ee.kubermehed.enginaator.dtos.InventoryViewDTO;
-import ee.kubermehed.enginaator.dtos.ParsedItemDTO;
-import ee.kubermehed.enginaator.dtos.RequestViewDTO;
+import ee.kubermehed.enginaator.dtos.InventoryViewDto;
+import ee.kubermehed.enginaator.dtos.ParsedItemDto;
+import ee.kubermehed.enginaator.dtos.RequestViewDto;
 import ee.kubermehed.enginaator.enums.RequestStatus;
 import ee.kubermehed.enginaator.models.InventoryItem;
 import ee.kubermehed.enginaator.models.RequestItem;
@@ -28,25 +28,25 @@ public class ServiceRequestService {
     private final InventoryItemRepository inventoryItemRepository;
     private final NotificationService notificationService;
 
-    public List<RequestViewDTO> getServiceRequests() {
+    public List<RequestViewDto> getServiceRequests() {
         return serviceRequestRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(RequestViewDTO::fromEntity)
+                .map(RequestViewDto::fromEntity)
                 .toList();
     }
 
     @Transactional
-    public RequestViewDTO createServiceRequest(String roomNumber, MultipartFile file) {
-        List<ParsedItemDTO> parsedItems = parserService.parseFromAudio(file);
-        return createRequest(roomNumber, null, parsedItems);
+    public RequestViewDto createServiceRequest(String roomNumber, MultipartFile file) {
+        List<ParsedItemDto> parsedItems = parserService.parseFromAudio(file);
+        return createRequest(roomNumber, "Guest voice request", parsedItems);
     }
 
     @Transactional
-    public RequestViewDTO createServiceRequestText(String roomNumber, String requestText) {
+    public RequestViewDto createServiceRequestText(String roomNumber, String requestText) {
         if (requestText == null || requestText.isBlank()) {
             throw new RuntimeException("Request text is required");
         }
 
-        List<ParsedItemDTO> parsedItems = parserService.parseFromText(requestText);
+        List<ParsedItemDto> parsedItems = parserService.parseFromText(requestText);
         return createRequest(roomNumber, requestText.trim(), parsedItems);
     }
 
@@ -91,10 +91,10 @@ public class ServiceRequestService {
         // TODO: send WS event about service request update to guests
     }
 
-    private RequestViewDTO createRequest(
+    private RequestViewDto createRequest(
             String roomNumber,
             String requestText,
-            List<ParsedItemDTO> parsedItems
+            List<ParsedItemDto> parsedItems
     ) {
         if (roomNumber == null || roomNumber.isBlank()) {
             throw new RuntimeException("Room number is required");
@@ -121,7 +121,7 @@ public class ServiceRequestService {
         guestRequest.setRequestText(requestText);
         guestRequest.setStatus(RequestStatus.RECEIVED);
 
-        for (ParsedItemDTO parsedItem : parsedItems) {
+        for (ParsedItemDto parsedItem : parsedItems) {
             String key = parsedItem.getItemName().trim().toLowerCase();
             InventoryItem inventoryItem = inventoryItems.get(key);
 
@@ -154,10 +154,10 @@ public class ServiceRequestService {
         GuestRequest savedRequest = serviceRequestRepository.save(guestRequest);
         inventoryItemRepository.saveAll(inventoryItems.values());
 
-        RequestViewDTO dto = RequestViewDTO.fromEntity(savedRequest);
+        RequestViewDto dto = RequestViewDto.fromEntity(savedRequest);
 
         inventoryItems.values().forEach(item ->
-                notificationService.sendToInventory(InventoryViewDTO.fromEntity(item))
+                notificationService.sendToInventory(InventoryViewDto.fromEntity(item))
         );
         notificationService.sendToStaff(dto);
         notificationService.sendToRoom(savedRequest.getRoomNumber(), dto);

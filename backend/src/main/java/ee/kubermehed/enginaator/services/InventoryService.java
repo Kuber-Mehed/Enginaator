@@ -1,7 +1,7 @@
 package ee.kubermehed.enginaator.services;
 
-import ee.kubermehed.enginaator.dtos.InventoryItemDTO;
-import ee.kubermehed.enginaator.dtos.InventoryViewDTO;
+import ee.kubermehed.enginaator.dtos.InventoryItemDto;
+import ee.kubermehed.enginaator.dtos.InventoryViewDto;
 import ee.kubermehed.enginaator.models.InventoryItem;
 import ee.kubermehed.enginaator.repositories.InventoryItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,17 +16,17 @@ public class InventoryService {
 
     private final InventoryItemRepository inventoryItemRepository;
 
-    public List<InventoryViewDTO> getInventory() {
-        return inventoryItemRepository.findAllByOrderByName().stream().map(InventoryViewDTO::fromEntity).toList();
+    public List<InventoryViewDto> getInventory() {
+        return inventoryItemRepository.findAllByOrderByName().stream().map(InventoryViewDto::fromEntity).toList();
     }
 
-    public void addItem(InventoryItemDTO item) {
-        InventoryItem newItem = InventoryItemDTO.toEntity(item);
+    public void addItem(InventoryItemDto item) {
+        InventoryItem newItem = InventoryItemDto.toEntity(item);
         inventoryItemRepository.save(newItem);
     }
 
-    public void update(UUID itemId, InventoryItemDTO item) {
-        InventoryItem updatedItem = InventoryItemDTO.toEntity(item);
+    public void update(UUID itemId, InventoryItemDto item) {
+        InventoryItem updatedItem = InventoryItemDto.toEntity(item);
         InventoryItem itemToUpdate = inventoryItemRepository.findById(itemId)
                 .orElseThrow(() -> new RuntimeException("Item not found"));
 

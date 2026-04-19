@@ -13,7 +13,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class InventoryViewDTO {
+public class InventoryViewDto {
     private UUID id;
     private String name;
     private int quantityInStock;
@@ -21,8 +21,8 @@ public class InventoryViewDTO {
     private int quantityAvailable;
     private int lowStockThreshold;
 
-    public static InventoryViewDTO fromEntity(InventoryItem item) {
-        InventoryViewDTO dto = new InventoryViewDTO();
+    public static InventoryViewDto fromEntity(InventoryItem item) {
+        InventoryViewDto dto = new InventoryViewDto();
         dto.setId(item.getId());
         dto.setName(item.getName());
         dto.setQuantityInStock(item.getQuantityInStock());

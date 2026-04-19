@@ -1,7 +1,7 @@
 package ee.kubermehed.enginaator.controllers;
 
-import ee.kubermehed.enginaator.dtos.InventoryItemDTO;
-import ee.kubermehed.enginaator.dtos.InventoryViewDTO;
+import ee.kubermehed.enginaator.dtos.InventoryItemDto;
+import ee.kubermehed.enginaator.dtos.InventoryViewDto;
 import ee.kubermehed.enginaator.services.InventoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,19 +18,19 @@ public class InventoryController {
     private final InventoryService inventoryService;
 
     @GetMapping
-    public ResponseEntity<List<InventoryViewDTO>> getInventory() {
+    public ResponseEntity<List<InventoryViewDto>> getInventory() {
         return ResponseEntity.ok(inventoryService.getInventory());
     }
 
     @PostMapping("/item")
-    public ResponseEntity<Void> addItem(@RequestBody InventoryItemDTO dto) {
+    public ResponseEntity<Void> addItem(@RequestBody InventoryItemDto dto) {
         inventoryService.addItem(dto);
         return ResponseEntity.ok().build();
     }
 
     @PutMapping("/item/{itemId}")
     public ResponseEntity<Void> restock(@PathVariable UUID itemId,
-                                        @RequestBody InventoryItemDTO dto) {
+                                        @RequestBody InventoryItemDto dto) {
         inventoryService.update(itemId, dto);
         return ResponseEntity.ok().build();
     }

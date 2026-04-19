@@ -16,17 +16,17 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class RequestViewDTO {
+public class RequestViewDto {
     private UUID id;
     private String roomNumber;
     private String text;
     private RequestStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<RequestItemViewDTO> requestItems;
+    private List<RequestItemViewDto> requestItems;
 
-    public static RequestViewDTO fromEntity(GuestRequest guestRequest) {
-        RequestViewDTO viewDTO = new RequestViewDTO();
+    public static RequestViewDto fromEntity(GuestRequest guestRequest) {
+        RequestViewDto viewDTO = new RequestViewDto();
         viewDTO.setId(guestRequest.getId());
         viewDTO.setRoomNumber(guestRequest.getRoomNumber());
         viewDTO.setText(guestRequest.getRequestText());
@@ -36,7 +36,7 @@ public class RequestViewDTO {
 
         viewDTO.setRequestItems(
                 guestRequest.getRequestItems().stream()
-                        .map(RequestItemViewDTO::fromEntity)
+                        .map(RequestItemViewDto::fromEntity)
                         .toList()
         );
 

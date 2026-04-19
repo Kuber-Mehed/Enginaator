@@ -3,7 +3,7 @@ package ee.kubermehed.enginaator.services;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import ee.kubermehed.enginaator.dtos.ParsedItemDTO;
+import ee.kubermehed.enginaator.dtos.ParsedItemDto;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -26,7 +26,7 @@ public class ServiceRequestParserService {
         this.webClient = builder.baseUrl(AI_PARSING_SERVICE_URL).build();
     }
 
-    public List<ParsedItemDTO> parseFromAudio(MultipartFile file) {
+    public List<ParsedItemDto> parseFromAudio(MultipartFile file) {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         builder.part("file", file.getResource());
 
@@ -39,7 +39,7 @@ public class ServiceRequestParserService {
         return parseItemsJson(normalizeItemsJson(rawResponse));
     }
 
-    public List<ParsedItemDTO> parseFromText(String requestText) {
+    public List<ParsedItemDto> parseFromText(String requestText) {
         String rawResponse = postForString(
                 "/extract",
                 MediaType.APPLICATION_JSON,
@@ -92,9 +92,9 @@ public class ServiceRequestParserService {
         }
     }
 
-    private List<ParsedItemDTO> parseItemsJson(String json) {
+    private List<ParsedItemDto> parseItemsJson(String json) {
         try {
-            return objectMapper.readValue(json, new TypeReference<List<ParsedItemDTO>>() {});
+            return objectMapper.readValue(json, new TypeReference<List<ParsedItemDto>>() {});
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse items JSON: " + json, e);
         }

@@ -1,16 +1,13 @@
 package ee.kubermehed.enginaator.dtos;
 
+import ee.kubermehed.enginaator.enums.RequestStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Item needed for the AI parsing result.
- */
 @Getter
 @Setter
 @NoArgsConstructor
-public class ParsedItemDTO {
-    private String itemName;
-    private int quantity;
+public class UpdateRequestStatusDto {
+    private RequestStatus status;
 }

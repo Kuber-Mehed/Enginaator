@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class InventoryItemDTO {
+public class InventoryItemDto {
     private UUID id;
     private String name;
     private InventoryItemCategory category;
@@ -22,7 +22,7 @@ public class InventoryItemDTO {
     private String unit;
     private int lowStockThreshold;
 
-    public static InventoryItem toEntity(InventoryItemDTO dto) {
+    public static InventoryItem toEntity(InventoryItemDto dto) {
         InventoryItem item = new InventoryItem();
         item.setName(dto.getName());
         item.setCategory(dto.getCategory().name());
